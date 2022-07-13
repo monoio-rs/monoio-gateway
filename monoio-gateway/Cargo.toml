@@ -1,0 +1,16 @@
+[package]
+name = "monoio-gateway"
+version = "0.0.1"
+edition = "2021"
+keywords = ["monoio", "http", "async"]
+description = "The gateway plugin for monoio"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+monoio = {path = "../../monoio/monoio"}
+
+bytes = "1"
+http = "0.2"
+httparse = "1"
+thiserror = "1"
