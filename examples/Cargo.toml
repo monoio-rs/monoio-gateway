@@ -7,11 +7,13 @@ edition = "2021"
 
 [dependencies]
 monoio-gateway = {path = '../monoio-gateway'}
-
-[dev-dependencies]
 monoio = {path = '../../monoio/monoio'}
 
 
 [[example]]
 name = "tcp-proxy"
 path = "tcp_proxy.rs"
+
+[[example]]
+name = "server"
+path = "server.rs"

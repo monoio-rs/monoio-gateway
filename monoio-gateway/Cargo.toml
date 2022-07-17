@@ -9,8 +9,10 @@ description = "The gateway plugin for monoio"
 
 [dependencies]
 monoio = {path = "../../monoio/monoio"}
+monoio-http = {path = "../../monoio-http/monoio-http"}
 
 bytes = "1"
 http = "0.2"
 httparse = "1"
 thiserror = "1"
+anyhow = "1"
