@@ -1,8 +1,18 @@
-use std::{vec, net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4}};
+use std::{
+    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4},
+    str::FromStr,
+    vec,
+};
 
-use anyhow::{Result, Ok};
+use anyhow::{Ok, Result};
 use monoio::net::ListenerConfig;
-use monoio_gateway::config::{Config, ProxyConfig, InBoundConfig, OutBoundConfig};
+use monoio_gateway::config::{Config, InBoundConfig, OutBoundConfig, ProxyConfig};
+
+pub mod config;
+pub mod dns;
+pub mod gateway;
+pub mod layer;
+pub mod proxy;
 
 #[monoio::main(timer_enabled = true)]
 async fn main() -> Result<()> {
@@ -10,14 +20,14 @@ async fn main() -> Result<()> {
     let inbound_addr = SocketAddr::V4(SocketAddrV4::new(local_addr.clone(), 5000));
     let outbound_addr = SocketAddr::V4(SocketAddrV4::new(local_addr.clone(), 9999));
 
-    let config = Config{
-        proxies: vec![
-            ProxyConfig {
-                inbound: InBoundConfig { addr: inbound_addr },
-                outbound: OutBoundConfig {addr: outbound_addr },
-            }
-        ],
-        listener: ListenerConfig::default(),
+    let config = Config {
+        proxies: vec![ProxyConfig {
+            inbound: InBoundConfig { addr: inbound_addr },
+            outbound: OutBoundConfig {
+                addr: outbound_addr,
+            },
+            listener: ListenerConfig::default(),
+        }],
     };
 
     let mut agent = config.build();
