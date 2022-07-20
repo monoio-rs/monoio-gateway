@@ -27,6 +27,7 @@ pub struct OutBoundConfig {
 #[derive(Clone)]
 pub struct ServerConfig {
     pub addr: TcpAddress,
+    // TODO: max retries
 }
 
 // traits start

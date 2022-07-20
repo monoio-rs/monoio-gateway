@@ -66,4 +66,6 @@ impl TcpProxy {
     pub async fn outbound_addr(&self) -> Result<SocketAddr> {
         Ok(self.config.outbound.server.addr.resolve().await?)
     }
+
+    pub fn configure(&mut self) {}
 }

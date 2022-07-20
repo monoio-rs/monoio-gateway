@@ -1,11 +1,7 @@
 #![feature(generic_associated_types)]
 #![feature(type_alias_impl_trait)]
 
-use std::{
-    net::{SocketAddr},
-    str::FromStr,
-    vec,
-};
+use std::{net::SocketAddr, str::FromStr, vec};
 
 use anyhow::{Ok, Result};
 use monoio::net::ListenerConfig;
@@ -17,6 +13,7 @@ use monoio_gateway::{
 pub mod config;
 pub mod dns;
 pub mod gateway;
+pub mod http;
 pub mod layer;
 pub mod proxy;
 

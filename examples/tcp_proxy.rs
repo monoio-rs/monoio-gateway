@@ -1,4 +1,4 @@
-use std::{vec};
+use std::vec;
 
 use monoio::{
     io::{AsyncReadRent, AsyncWriteRent, AsyncWriteRentExt},

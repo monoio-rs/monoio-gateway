@@ -1,7 +1,4 @@
-use std::{
-    future::Future,
-    net::{SocketAddr},
-};
+use std::{future::Future, net::SocketAddr};
 
 use super::Resolvable;
 

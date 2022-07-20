@@ -26,10 +26,8 @@ impl Gateway {
 
     /// serve current gateway
     pub async fn serve(&mut self) -> Result<()> {
-        let _inbound = &self.config.inbound;
-        // server with pure TCP
-        // TODO: UDP
-        self.legacy_serve().await
+        let mut proxy = TcpProxy::build_with_config(&self.config);
+        proxy.io_loop().await
     }
 
     pub async fn legacy_serve(&mut self) -> Result<()> {
