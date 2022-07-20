@@ -1,25 +1,31 @@
-use std::net::SocketAddr;
+use std::{
+    future::Future,
+    net::{SocketAddr},
+};
 
 use super::Resolvable;
 
-
+#[derive(Copy, Clone)]
 pub struct TcpAddress {
-    inner: SocketAddr
+    inner: SocketAddr,
 }
 
-impl Resolvable for TcpAddress
-{
-    type Output = SocketAddr;
-
-    fn resolve(&self) -> Self::Output {
-       self.inner.resolve()
+impl TcpAddress {
+    pub fn new(s: SocketAddr) -> Self {
+        Self { inner: s }
     }
 }
 
-impl Resolvable for SocketAddr {
-    type Output = SocketAddr;
+impl Resolvable for TcpAddress {
+    type Error = anyhow::Error;
 
-    fn resolve(&self) -> Self::Output {
-        self.clone()
+    type Item<'a> = SocketAddr;
+
+    type ResolveFuture<'a> = impl Future<Output = Result<Self::Item<'a>, Self::Error>>;
+
+    fn resolve(&self) -> Self::ResolveFuture<'_> {
+        async { Ok(self.inner.clone()) }
     }
 }
+
+// impl Resolvable for SocketAddr {}

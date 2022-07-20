@@ -1,8 +1,6 @@
-use std::net::SocketAddr;
-
 use monoio::net::ListenerConfig;
 
-use crate::gateway::GatewayAgent;
+use crate::{dns::tcp::TcpAddress, gateway::GatewayAgent};
 
 #[derive(Clone)]
 pub struct Config {
@@ -18,12 +16,17 @@ pub struct ProxyConfig {
 
 #[derive(Clone)]
 pub struct InBoundConfig {
-    pub addr: SocketAddr,
+    pub server: ServerConfig,
 }
 
 #[derive(Clone)]
 pub struct OutBoundConfig {
-    pub addr: SocketAddr,
+    pub server: ServerConfig,
+}
+
+#[derive(Clone)]
+pub struct ServerConfig {
+    pub addr: TcpAddress,
 }
 
 // traits start

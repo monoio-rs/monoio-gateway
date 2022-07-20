@@ -1,10 +1,19 @@
+use std::future::Future;
+
 use monoio::io::{AsyncReadRent, AsyncWriteRent, AsyncWriteRentExt};
 
 pub mod h1;
 pub mod h2;
 pub mod tcp;
 
-pub trait Proxy {}
+pub trait Proxy {
+    type Error;
+    type OutputFuture<'a>: Future<Output = Result<(), Self::Error>>
+    where
+        Self: 'a;
+
+    fn io_loop(&mut self) -> Self::OutputFuture<'_>;
+}
 
 pub async fn copy_data<Read: AsyncReadRent, Write: AsyncWriteRent>(
     local: &mut Read,

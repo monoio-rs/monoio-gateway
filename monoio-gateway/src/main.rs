@@ -1,12 +1,18 @@
+#![feature(generic_associated_types)]
+#![feature(type_alias_impl_trait)]
+
 use std::{
-    net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4},
+    net::{SocketAddr},
     str::FromStr,
     vec,
 };
 
 use anyhow::{Ok, Result};
 use monoio::net::ListenerConfig;
-use monoio_gateway::config::{Config, InBoundConfig, OutBoundConfig, ProxyConfig};
+use monoio_gateway::{
+    config::{Config, InBoundConfig, OutBoundConfig, ProxyConfig, ServerConfig},
+    dns::tcp::TcpAddress,
+};
 
 pub mod config;
 pub mod dns;
@@ -16,15 +22,20 @@ pub mod proxy;
 
 #[monoio::main(timer_enabled = true)]
 async fn main() -> Result<()> {
-    let local_addr = Ipv4Addr::new(127, 0, 0, 1);
-    let inbound_addr = SocketAddr::V4(SocketAddrV4::new(local_addr.clone(), 5000));
-    let outbound_addr = SocketAddr::V4(SocketAddrV4::new(local_addr.clone(), 9999));
+    let inbound_addr = SocketAddr::from_str("127.0.0.1:5000")?;
+    let outbound_addr = SocketAddr::from_str("127.0.0.1:9999")?;
 
     let config = Config {
         proxies: vec![ProxyConfig {
-            inbound: InBoundConfig { addr: inbound_addr },
+            inbound: InBoundConfig {
+                server: ServerConfig {
+                    addr: TcpAddress::new(inbound_addr),
+                },
+            },
             outbound: OutBoundConfig {
-                addr: outbound_addr,
+                server: ServerConfig {
+                    addr: TcpAddress::new(outbound_addr),
+                },
             },
             listener: ListenerConfig::default(),
         }],

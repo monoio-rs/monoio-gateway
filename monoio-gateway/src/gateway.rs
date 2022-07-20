@@ -1,11 +1,10 @@
-use std::{net::SocketAddr, vec};
+use std::vec;
 
 use anyhow::{Ok, Result};
-use monoio::net::{ListenerConfig, TcpListener};
 
 use crate::{
-    config::{self, Config, ProxyConfig},
-    proxy::tcp::TcpProxy,
+    config::{Config, ProxyConfig},
+    proxy::{tcp::TcpProxy, Proxy},
 };
 
 pub struct GatewayAgent {
@@ -27,7 +26,7 @@ impl Gateway {
 
     /// serve current gateway
     pub async fn serve(&mut self) -> Result<()> {
-        let inbound = &self.config.inbound;
+        let _inbound = &self.config.inbound;
         // server with pure TCP
         // TODO: UDP
         self.legacy_serve().await
