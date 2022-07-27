@@ -10,7 +10,9 @@ use monoio_gateway::{
     dns::tcp::TcpAddress,
 };
 
+pub mod balance;
 pub mod config;
+pub mod discover;
 pub mod dns;
 pub mod gateway;
 pub mod http;
