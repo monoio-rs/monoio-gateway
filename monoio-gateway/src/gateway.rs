@@ -5,12 +5,10 @@ use std::{
     vec,
 };
 
-use anyhow::{Ok, Result};
-
 use crate::{
     config::{Config, GError, ProxyConfig},
-    dns::{tcp::TcpAddress, Resolvable},
-    proxy::{tcp::TcpProxy, Proxy},
+    dns::{http::Domain, tcp::TcpAddress, Resolvable},
+    proxy::{h1::HttpProxy, tcp::TcpProxy, Proxy},
 };
 
 pub struct GatewayAgent<'cx, Addr>
@@ -60,16 +58,50 @@ impl<'cx> Gatewayable<'cx, TcpAddress> for Gateway<'cx, TcpAddress> {
     fn serve(&'cx self) -> Self::GatewayFuture {
         async move {
             let mut proxy = TcpProxy::build_with_config(&self.config);
-            proxy.io_loop().await;
+            let _ = proxy.io_loop().await;
             Ok(())
         }
     }
 }
-impl<'cx> GatewayAgent<'cx, TcpAddress>
-where
-    'cx: 'static,
-{
-    pub fn build(config: &Config<'cx, TcpAddress>) -> Self {
+
+impl<'cx> Gatewayable<'cx, Domain> for Gateway<'cx, Domain> {
+    type GatewayFuture = impl Future<Output = Result<(), GError>> where Self: 'cx;
+
+    fn new(config: ProxyConfig<'cx, Domain>) -> Self {
+        Self {
+            config,
+            phantom_data: PhantomData,
+        }
+    }
+
+    fn serve(&'cx self) -> Self::GatewayFuture {
+        async move {
+            let mut proxy = HttpProxy::build_with_config(&self.config);
+            let _ = proxy.io_loop().await;
+            Ok(())
+        }
+    }
+}
+
+pub trait GatewayAgentable {
+    type Config;
+    type Future<'cx>: Future<Output = Result<(), anyhow::Error>>
+    where
+        Self: 'cx;
+
+    fn build(config: &Self::Config) -> Self;
+
+    fn serve(&'_ mut self) -> Self::Future<'_>;
+}
+
+impl GatewayAgentable for GatewayAgent<'static, TcpAddress> {
+    type Config = Config<'static, TcpAddress>;
+
+    type Future<'g> = impl Future<Output = Result<(), anyhow::Error>>
+    where
+        Self: 'g;
+
+    fn build(config: &Self::Config) -> Self {
         let gateways: Vec<Gateway<TcpAddress>> = config
             .proxies
             .iter()
@@ -82,23 +114,54 @@ where
         }
     }
 
-    /// serve current gateway, ensure all gateways
-    async fn _serve(&mut self) -> Result<()> {
-        let mut gws = self.gateways.clone();
-        let mut handlers = vec![];
-        for gw in gws.iter_mut() {
-            let clone = gw.clone();
-            let f = monoio::spawn(async move { clone.serve().await });
-            handlers.push(f);
+    fn serve(&'_ mut self) -> Self::Future<'_> {
+        async {
+            let mut handlers = vec![];
+            for gw in self.gateways.iter_mut() {
+                let clone = gw.clone();
+                let f = monoio::spawn(async move { clone.serve().await });
+                handlers.push(f);
+            }
+            for handle in handlers {
+                let _ = handle.await;
+            }
+            Ok(())
         }
-        for handle in handlers {
-            let _ = handle.await;
+    }
+}
+
+impl GatewayAgentable for GatewayAgent<'static, Domain> {
+    type Config = Config<'static, Domain>;
+
+    type Future<'cx> = impl Future<Output = Result<(), anyhow::Error>>
+    where
+        Self: 'cx;
+
+    fn build(config: &Self::Config) -> Self {
+        let gateways: Vec<Gateway<Domain>> = config
+            .proxies
+            .iter()
+            .map(|proxy_config| Gateway::new(proxy_config.clone()))
+            .collect();
+        GatewayAgent {
+            config: config.clone(),
+            gateways,
+            phantom_data: PhantomData,
         }
-        Ok(())
     }
 
-    pub async fn serve(&mut self) -> Result<()> {
-        self._serve().await?;
-        Ok(())
+    fn serve(&'_ mut self) -> Self::Future<'_> {
+        async {
+            let mut handlers = vec![];
+            for gw in self.gateways.iter_mut() {
+                let clone = gw.clone();
+                let f = monoio::spawn(async move { clone.serve().await });
+                handlers.push(f);
+            }
+            for handle in handlers {
+                let _ = handle.await;
+            }
+            Ok(())
+        }
     }
 }

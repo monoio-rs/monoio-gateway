@@ -9,6 +9,7 @@ edition = "2021"
 monoio-gateway = {path = '../monoio-gateway'}
 monoio = {path = '../../monoio/monoio'}
 monoio-http = {path = '../../monoio-http/monoio-http'}
+anyhow = "1"
 
 
 [[example]]

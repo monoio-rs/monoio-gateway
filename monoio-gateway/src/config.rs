@@ -2,13 +2,14 @@ use std::{
     future::Future,
     marker::PhantomData,
     net::{SocketAddr, ToSocketAddrs},
+    vec,
 };
 
 use monoio::net::ListenerConfig;
 
 use crate::{
-    dns::{h1::Domain, tcp::TcpAddress, Resolvable},
-    gateway::GatewayAgent,
+    dns::{http::Domain, tcp::TcpAddress, Resolvable},
+    gateway::{GatewayAgent, GatewayAgentable},
 };
 
 pub type GError = anyhow::Error;
@@ -23,6 +24,25 @@ where
     pub proxies: Vec<ProxyConfig<'cx, Addr>>,
 
     pub phantom_data: PhantomData<&'cx Addr>,
+}
+
+impl<'cx, Addr> Config<'cx, Addr>
+where
+    Addr: Resolvable<Error = GError> + 'cx,
+    Addr::Item<'cx>: ToSocketAddrs + 'cx,
+    Addr::ResolveFuture<'cx>: Future<Output = Result<Option<SocketAddr>, GError>>,
+{
+    pub fn new() -> Self {
+        Self {
+            proxies: vec![],
+            phantom_data: PhantomData,
+        }
+    }
+
+    pub fn push(mut self, proxy_config: ProxyConfig<'cx, Addr>) -> Self {
+        self.proxies.push(proxy_config);
+        self
+    }
 }
 
 #[derive(Clone)]
@@ -41,11 +61,29 @@ pub struct InBoundConfig<'cx, Addr> {
     pub phantom_data: PhantomData<&'cx Addr>,
 }
 
+impl<'cx, Addr> InBoundConfig<'cx, Addr> {
+    pub fn new(config: ServerConfig<'cx, Addr>) -> Self {
+        Self {
+            server: config,
+            phantom_data: PhantomData,
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct OutBoundConfig<'cx, Addr> {
     pub server: ServerConfig<'cx, Addr>,
 
     pub phantom_data: PhantomData<&'cx Addr>,
+}
+
+impl<'cx, Addr> OutBoundConfig<'cx, Addr> {
+    pub fn new(config: ServerConfig<'cx, Addr>) -> Self {
+        Self {
+            server: config,
+            phantom_data: PhantomData,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -54,6 +92,15 @@ pub struct ServerConfig<'cx, Addr> {
 
     pub phantom_data: PhantomData<&'cx Addr>,
     // TODO: max retries
+}
+
+impl<'cx, Addr> ServerConfig<'cx, Addr> {
+    pub fn new(addr: Addr) -> Self {
+        Self {
+            addr,
+            phantom_data: PhantomData,
+        }
+    }
 }
 
 // traits start
@@ -65,6 +112,15 @@ where
     'cx: 'static,
 {
     pub fn build(&self) -> GatewayAgent<'cx, TcpAddress> {
+        GatewayAgent::build(self)
+    }
+}
+
+impl<'cx> Config<'cx, Domain>
+where
+    'cx: 'static,
+{
+    pub fn build(&self) -> GatewayAgent<'cx, Domain> {
         GatewayAgent::build(self)
     }
 }

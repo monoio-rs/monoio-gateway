@@ -1,6 +1,6 @@
 use std::{fmt::Debug, future::Future, net::ToSocketAddrs};
 
-pub mod h1;
+pub mod http;
 pub mod tcp;
 
 pub trait Resolvable: Clone {

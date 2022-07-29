@@ -4,7 +4,7 @@ use super::Resolvable;
 
 #[derive(Copy, Clone)]
 pub struct TcpAddress {
-    pub inner: SocketAddr,
+    inner: SocketAddr,
 }
 
 impl TcpAddress {
