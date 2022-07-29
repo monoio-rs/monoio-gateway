@@ -1,22 +1,33 @@
 use std::{future::Future, net::SocketAddr};
 
-use anyhow::Result;
 use monoio::net::{TcpListener, TcpStream};
 
-use crate::{config::ProxyConfig, dns::Resolvable, proxy::copy_data};
+use crate::{
+    config::ProxyConfig,
+    dns::{h1::Domain, tcp::TcpAddress, Resolvable},
+    proxy::copy_data,
+};
 
 use super::Proxy;
 
-pub struct TcpProxy {
-    config: ProxyConfig,
+pub type TcpProxyConfig<'cx> = ProxyConfig<'cx, TcpAddress>;
+pub type HttpProxyConfig<'cx> = ProxyConfig<'cx, Domain>;
+
+pub struct TcpProxy<'cx> {
+    config: TcpProxyConfig<'cx>,
 }
 
-impl Proxy for TcpProxy {
+pub struct HttpProxy<'cx> {
+    config: HttpProxyConfig<'cx>,
+}
+
+impl<'cx> Proxy for TcpProxy<'cx> {
     type Error = anyhow::Error;
-    type OutputFuture<'a> = impl Future<Output = Result<(), Self::Error>>;
+    type OutputFuture<'a> = impl Future<Output = Result<(), Self::Error>> where Self: 'a;
 
     fn io_loop(&mut self) -> Self::OutputFuture<'_> {
         async {
+            println!("starting a new tcp proxy");
             // bind inbound port
             let local_addr = self.inbound_addr().await?;
             let peer_addr = self.outbound_addr().await?;
@@ -52,19 +63,67 @@ impl Proxy for TcpProxy {
     }
 }
 
-impl TcpProxy {
-    pub fn build_with_config(config: &ProxyConfig) -> Self {
+impl<'cx> TcpProxy<'cx> {
+    pub fn build_with_config(config: &TcpProxyConfig<'cx>) -> Self {
         Self {
             config: config.clone(),
         }
     }
 
-    pub async fn inbound_addr(&self) -> Result<SocketAddr> {
-        Ok(self.config.inbound.server.addr.resolve().await?)
+    pub async fn inbound_addr(&self) -> Result<SocketAddr, anyhow::Error> {
+        let resolved = self.config.inbound.server.addr.resolve().await?;
+        if let Some(res) = resolved {
+            Ok(res)
+        } else {
+            Err(anyhow::anyhow!("resolve tcp inbound addr failed."))
+        }
     }
 
-    pub async fn outbound_addr(&self) -> Result<SocketAddr> {
-        Ok(self.config.outbound.server.addr.resolve().await?)
+    pub async fn outbound_addr(&self) -> Result<SocketAddr, anyhow::Error> {
+        let resolved = self.config.outbound.server.addr.resolve().await?;
+        if let Some(res) = resolved {
+            Ok(res)
+        } else {
+            Err(anyhow::anyhow!("resolve tcp inbound addr failed."))
+        }
+    }
+
+    pub fn configure(&mut self) {}
+}
+
+impl<'cx> Proxy for HttpProxy<'cx> {
+    type Error = anyhow::Error;
+    type OutputFuture<'a> = impl Future<Output = Result<(), Self::Error>> where Self: 'a;
+
+    fn io_loop(&mut self) -> Self::OutputFuture<'_> {
+        async {
+            println!("start a http proxy");
+            todo!();
+        }
+    }
+}
+
+impl<'cx> HttpProxy<'cx> {
+    pub fn build_with_config(config: HttpProxyConfig<'cx>) -> Self {
+        Self { config }
+    }
+
+    pub async fn inbound_addr(&self) -> Result<SocketAddr, anyhow::Error> {
+        let resolved = self.config.inbound.server.addr.resolve().await?;
+        if let Some(res) = resolved {
+            Ok(res)
+        } else {
+            Err(anyhow::anyhow!("resolve http inbound addr failed."))
+        }
+    }
+
+    pub async fn outbound_addr(&self) -> Result<SocketAddr, anyhow::Error> {
+        let resolved = self.config.outbound.server.addr.resolve().await?;
+        if let Some(res) = resolved {
+            Ok(res)
+        } else {
+            Err(anyhow::anyhow!("resolve http outbound addr failed."))
+        }
     }
 
     pub fn configure(&mut self) {}

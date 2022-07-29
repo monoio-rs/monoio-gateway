@@ -1,6 +1,4 @@
-
-
-use crate::{discover::Discover};
+use crate::discover::Discover;
 
 use super::svc_list::SvcList;
 

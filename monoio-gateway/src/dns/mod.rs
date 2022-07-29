@@ -1,13 +1,14 @@
-use std::{future::Future, net::ToSocketAddrs};
+use std::{fmt::Debug, future::Future, net::ToSocketAddrs};
 
+pub mod h1;
 pub mod tcp;
 
-pub trait Resolvable {
-    type Error;
+pub trait Resolvable: Clone {
+    type Error: Debug;
     type Item<'a>: ToSocketAddrs
     where
         Self: 'a;
-    type ResolveFuture<'a>: Future<Output = Result<Self::Item<'a>, Self::Error>>
+    type ResolveFuture<'a>: Future<Output = Result<Option<Self::Item<'a>>, Self::Error>>
     where
         Self: 'a;
 

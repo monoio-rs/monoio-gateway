@@ -1,0 +1,25 @@
+{
+  "http": [
+    {
+      "server_name": "python simple http server",
+      "domain": "127.0.0.1",
+      "listen": 5000,
+      "proxy": [
+        {
+          "path": "/test1",
+          "pass": "http://127.0.0.1:8000"
+        },
+        {
+          "path": "/test2",
+          "pass": "http://127.0.0.1:8001"
+        }
+      ]
+    }
+  ],
+  "tcp": [
+    {
+      "listen": 8888,
+      "to": 9000
+    }
+  ]
+}

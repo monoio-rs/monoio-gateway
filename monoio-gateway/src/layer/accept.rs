@@ -1,9 +1,6 @@
 use std::{future::Future, net::SocketAddr};
 
-use monoio::{
-    io::stream::Stream,
-    net::{TcpStream},
-};
+use monoio::{io::stream::Stream, net::TcpStream};
 
 use super::service::Service;
 use anyhow::anyhow;

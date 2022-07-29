@@ -4,7 +4,7 @@ use super::Resolvable;
 
 #[derive(Copy, Clone)]
 pub struct TcpAddress {
-    inner: SocketAddr,
+    pub inner: SocketAddr,
 }
 
 impl TcpAddress {
@@ -18,10 +18,10 @@ impl Resolvable for TcpAddress {
 
     type Item<'a> = SocketAddr;
 
-    type ResolveFuture<'a> = impl Future<Output = Result<Self::Item<'a>, Self::Error>>;
+    type ResolveFuture<'a> = impl Future<Output = Result<Option<Self::Item<'a>>, Self::Error>>;
 
     fn resolve(&self) -> Self::ResolveFuture<'_> {
-        async { Ok(self.inner.clone()) }
+        async { Ok(Some(self.inner.clone())) }
     }
 }
 
