@@ -58,7 +58,7 @@ impl<'cx> Gatewayable<'cx, TcpAddress> for Gateway<'cx, TcpAddress> {
     fn serve(&'cx self) -> Self::GatewayFuture {
         async move {
             let mut proxy = TcpProxy::build_with_config(&self.config);
-            let _ = proxy.io_loop().await;
+            let _ = proxy.io_loop().await?;
             Ok(())
         }
     }
@@ -77,7 +77,7 @@ impl<'cx> Gatewayable<'cx, Domain> for Gateway<'cx, Domain> {
     fn serve(&'cx self) -> Self::GatewayFuture {
         async move {
             let mut proxy = HttpProxy::build_with_config(&self.config);
-            let _ = proxy.io_loop().await;
+            let _ = proxy.io_loop().await?;
             Ok(())
         }
     }
