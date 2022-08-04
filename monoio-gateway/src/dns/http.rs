@@ -40,6 +40,10 @@ impl Domain {
             crate::http::version::Type::HTTPS => self.uri.port_u16().or_else(|| Some(443)).unwrap(),
         }
     }
+
+    pub fn host(&self) -> String {
+        self.uri.authority().unwrap().host().to_owned()
+    }
 }
 
 impl Resolvable for Domain {
@@ -59,7 +63,7 @@ impl Resolvable for Domain {
             if let Some(host) = host {
                 match host.to_socket_addrs() {
                     Ok(mut addrs) => Ok(addrs.next()),
-                    Err(_e) => Err(anyhow!("error resolve domain {}.", host)),
+                    Err(e) => Err(anyhow!("error resolve domain {}: {}.", host, e)),
                 }
             } else {
                 Ok(None)

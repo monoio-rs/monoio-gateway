@@ -2,6 +2,7 @@
 #![feature(type_alias_impl_trait)]
 
 use anyhow::{Ok, Result};
+use monoio_gateway::{log::init_logger, init_env};
 
 pub mod balance;
 pub mod config;
@@ -14,5 +15,6 @@ pub mod proxy;
 
 #[monoio::main(timer_enabled = true)]
 async fn main() -> Result<()> {
+    init_env();
     Ok(())
 }

@@ -1,6 +1,8 @@
 use std::{future::Future, net::SocketAddr};
 use std::fmt::Pointer;
 
+use http::{HeaderValue, Uri};
+use monoio::net::TcpStream;
 use monoio::{
     io::stream::Stream,
     net::{TcpListener},
@@ -18,6 +20,7 @@ use crate::{
     config::ProxyConfig,
     dns::{http::Domain, Resolvable},
 };
+use crate::proxy::copy_stream_sink;
 
 use super::Proxy;
 
@@ -48,13 +51,37 @@ impl<'cx> Proxy for HttpProxy<'cx> {
                             // demo mode
                             match local_dec.next().await {
                                 Some(Ok(req)) => {
-                                    println!("{:?}", req.().host());
-                                    if let Some(req_host) = req.uri().host() {
-                                        println!("host: {}", req_host);
-                                        let resp = ResponseBuilder::default().body(
-                                            Payload::from(FixedPayload::new("hello".into()))
-                                        ).unwrap();
-                                        local_enc.send_and_flush(resp).await?;
+                                    let headers = req.headers();
+                                    let v = req.version();
+                                    println!("{:?}, {:?}",headers, v);
+                                    match headers.get("host") {
+                                        None => {
+                                            eprintln!("no host provided, ignore current request");
+                                        }
+                                        Some(host) => {
+                                            let inbound = self.inbound_host();
+                                            if host.to_str().unwrap_or("") == inbound {
+                                                match TcpStream::connect(self.outbound_host()).await {
+                                                    Ok(stream) => {
+                                                        let (r_r, r_w) = stream.into_split();
+                                                        let mut remote_dec = RequestDecoder::new(r_r);
+                                                        let mut remote_enc = GenericEncoder::new(r_w);
+
+                                                        let _ = remote_enc.send_and_flush(req).await;
+                                                        let _ = monoio::join!(
+                                                            copy_stream_sink(&mut local_dec, &mut remote_enc),
+                                                            copy_stream_sink(&mut remote_dec, &mut local_enc)
+                                                        );
+                                                    }
+                                                    Err(e) => {
+                                                        eprintln!("{}", e);
+                                                    }
+                                                }
+                                            } else {
+                                                // ignore current session
+                                                eprintln!("ignore current session.");
+                                            }
+                                        }
                                     }
                                 }
                                 Some(Err(e)) => {
@@ -102,6 +129,24 @@ impl<'cx> HttpProxy<'cx> {
             Ok(res)
         } else {
             Err(anyhow::anyhow!("resolve http outbound addr failed."))
+        }
+    }
+
+    pub fn outbound_host(&self) -> String{
+        let host = self.config.outbound.server.addr.host();
+        if let Some(_) = str::find(&host, ':') {
+            host.to_owned()
+        } else {
+            host.to_owned() + &format!(":{}", self.config.outbound.server.addr.port())
+        }
+    }
+
+    pub fn inbound_host(&self) -> String{
+        let host = self.config.inbound.server.addr.host();
+        if let Some(_) = str::find(&host, ':') {
+            host.to_owned()
+        } else {
+            host.to_owned() + &format!(":{}", self.config.inbound.server.addr.port())
         }
     }
 
