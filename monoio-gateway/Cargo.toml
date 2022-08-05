@@ -16,4 +16,6 @@ http = "0.2"
 httparse = "1"
 thiserror = "1"
 anyhow = "1"
+# logger
 env_logger = "0.9"
+log = "0.4"

@@ -224,6 +224,7 @@ dependencies = [
  "env_logger",
  "http",
  "httparse",
+ "log",
  "monoio",
  "monoio-http",
  "thiserror",

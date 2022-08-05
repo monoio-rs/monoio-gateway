@@ -1,26 +1,23 @@
+
 use std::{future::Future, net::SocketAddr};
-use std::fmt::Pointer;
 
-use http::{HeaderValue, Uri};
+
+
+use monoio::io::sink::{SinkExt};
 use monoio::net::TcpStream;
-use monoio::{
-    io::stream::Stream,
-    net::{TcpListener},
-};
-use monoio::io::sink::{Sink, SinkExt};
-use monoio_http::common::request::Request;
-use monoio_http::common::response::ResponseBuilder;
-use monoio_http::h1::codec::{
-    decoder::{RequestDecoder},
-    encoder::GenericEncoder
-};
-use monoio_http::h1::payload::{FixedPayload, Payload};
+use monoio::{io::stream::Stream, net::TcpListener};
 
+
+use monoio_http::h1::codec::decoder::{FillPayload, ResponseDecoder};
+use monoio_http::h1::codec::{decoder::RequestDecoder, encoder::GenericEncoder};
+
+
+
+use crate::proxy::copy_stream_sink;
 use crate::{
     config::ProxyConfig,
     dns::{http::Domain, Resolvable},
 };
-use crate::proxy::copy_stream_sink;
 
 use super::Proxy;
 
@@ -51,9 +48,11 @@ impl<'cx> Proxy for HttpProxy<'cx> {
                             // demo mode
                             match local_dec.next().await {
                                 Some(Ok(req)) => {
+                                    if let Err(decode_error) = local_dec.fill_payload().await {
+                                        log::info!("{}", decode_error);
+                                        continue;
+                                    }
                                     let headers = req.headers();
-                                    let v = req.version();
-                                    println!("{:?}, {:?}",headers, v);
                                     match headers.get("host") {
                                         None => {
                                             eprintln!("no host provided, ignore current request");
@@ -61,16 +60,26 @@ impl<'cx> Proxy for HttpProxy<'cx> {
                                         Some(host) => {
                                             let inbound = self.inbound_host();
                                             if host.to_str().unwrap_or("") == inbound {
-                                                match TcpStream::connect(self.outbound_host()).await {
+                                                match TcpStream::connect(self.outbound_host()).await
+                                                {
                                                     Ok(stream) => {
                                                         let (r_r, r_w) = stream.into_split();
-                                                        let mut remote_dec = RequestDecoder::new(r_r);
-                                                        let mut remote_enc = GenericEncoder::new(r_w);
+                                                        let mut remote_dec =
+                                                            ResponseDecoder::new(r_r);
+                                                        let mut remote_enc =
+                                                            GenericEncoder::new(r_w);
 
-                                                        let _ = remote_enc.send_and_flush(req).await;
+                                                        let _ =
+                                                            remote_enc.send_and_flush(req).await;
                                                         let _ = monoio::join!(
-                                                            copy_stream_sink(&mut local_dec, &mut remote_enc),
-                                                            copy_stream_sink(&mut remote_dec, &mut local_enc)
+                                                            copy_stream_sink(
+                                                                &mut remote_dec,
+                                                                &mut local_enc
+                                                            ),
+                                                            copy_stream_sink(
+                                                                &mut local_dec,
+                                                                &mut remote_enc
+                                                            )
                                                         );
                                                     }
                                                     Err(e) => {
@@ -96,11 +105,14 @@ impl<'cx> Proxy for HttpProxy<'cx> {
                     Ok(())
                 }
                 Err(err) => {
-                    eprintln!("bind error for http proxy with address {}, reason: {}", bind_address, err);
+                    eprintln!(
+                        "bind error for http proxy with address {}, reason: {}",
+                        bind_address, err
+                    );
                     return Err(anyhow::anyhow!(
-                    "error bind listener to {}",
-                    self.listen_port(),
-                ));
+                        "error bind listener to {}",
+                        self.listen_port(),
+                    ));
                 }
             }
         }
@@ -132,7 +144,7 @@ impl<'cx> HttpProxy<'cx> {
         }
     }
 
-    pub fn outbound_host(&self) -> String{
+    pub fn outbound_host(&self) -> String {
         let host = self.config.outbound.server.addr.host();
         if let Some(_) = str::find(&host, ':') {
             host.to_owned()
@@ -141,7 +153,7 @@ impl<'cx> HttpProxy<'cx> {
         }
     }
 
-    pub fn inbound_host(&self) -> String{
+    pub fn inbound_host(&self) -> String {
         let host = self.config.inbound.server.addr.host();
         if let Some(_) = str::find(&host, ':') {
             host.to_owned()

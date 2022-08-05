@@ -2,7 +2,7 @@
 #![feature(type_alias_impl_trait)]
 
 use anyhow::{Ok, Result};
-use monoio_gateway::{log::init_logger, init_env};
+use monoio_gateway::init_env;
 
 pub mod balance;
 pub mod config;

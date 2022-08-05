@@ -117,11 +117,12 @@ impl GatewayAgentable for GatewayAgent<'static, TcpAddress> {
             let mut handlers = vec![];
             for gw in self.gateways.iter_mut() {
                 let clone = gw.clone();
-                let f = monoio::spawn(async move { 
+                let f = monoio::spawn(async move {
                     match clone.serve().await {
-                        Ok(()) => {},
-                        Err(err) => eprintln!("Error: {}", err)
-                    } });
+                        Ok(()) => {}
+                        Err(err) => eprintln!("Error: {}", err),
+                    }
+                });
                 handlers.push(f);
             }
             for handle in handlers {
@@ -157,12 +158,12 @@ impl GatewayAgentable for GatewayAgent<'static, Domain> {
             let mut handlers = vec![];
             for gw in self.gateways.iter_mut() {
                 let clone = gw.clone();
-                let f = monoio::spawn(async move { 
+                let f = monoio::spawn(async move {
                     match clone.serve().await {
-                        Ok(()) => {},
-                        Err(e) => eprintln!("Error: {}", e)
+                        Ok(()) => {}
+                        Err(e) => eprintln!("Error: {}", e),
                     }
-                 });
+                });
                 handlers.push(f);
             }
             for handle in handlers {

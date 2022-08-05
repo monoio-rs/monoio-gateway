@@ -9,7 +9,6 @@ pub mod gateway;
 pub mod http;
 pub mod layer;
 pub mod proxy;
-pub mod log;
 
 pub trait ParamRef<T> {
     fn param_ref(&self) -> &T;
@@ -20,5 +19,5 @@ pub trait ParamMut<T> {
 }
 
 pub fn init_env() {
-    log::init_logger();
+    env_logger::init();
 }
