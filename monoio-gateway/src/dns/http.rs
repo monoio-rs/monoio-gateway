@@ -25,19 +25,23 @@ impl Domain {
         }
     }
 
-    pub fn version(&self) -> crate::http::version::Type {
+    pub fn version(&self) -> monoio_gateway_core::http::version::Type {
         let v = self.uri.scheme_str().or_else(|| Some("http")).unwrap();
         return if v == "https" {
-            crate::http::version::Type::HTTPS
+            monoio_gateway_core::http::version::Type::HTTPS
         } else {
-            crate::http::version::Type::HTTP
+            monoio_gateway_core::http::version::Type::HTTP
         };
     }
 
     pub fn port(&self) -> u16 {
         match self.version() {
-            crate::http::version::Type::HTTP => self.uri.port_u16().or_else(|| Some(80)).unwrap(),
-            crate::http::version::Type::HTTPS => self.uri.port_u16().or_else(|| Some(443)).unwrap(),
+            monoio_gateway_core::http::version::Type::HTTP => {
+                self.uri.port_u16().or_else(|| Some(80)).unwrap()
+            }
+            monoio_gateway_core::http::version::Type::HTTPS => {
+                self.uri.port_u16().or_else(|| Some(443)).unwrap()
+            }
         }
     }
 

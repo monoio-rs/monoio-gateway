@@ -2,7 +2,7 @@ use std::future::Future;
 
 use monoio::io::AsyncReadRent;
 
-use super::Detect;
+
 
 #[derive(Default)]
 pub struct DetectHttpVersion {}

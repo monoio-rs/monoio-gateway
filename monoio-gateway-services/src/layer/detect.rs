@@ -1,10 +1,7 @@
 use std::future::Future;
 
 use monoio::io::AsyncReadRent;
-
-use crate::http::Detect;
-
-use super::service::Service;
+use monoio_gateway_core::{http::Detect, service::Service};
 
 pub struct DetectService<D> {
     detect: D,

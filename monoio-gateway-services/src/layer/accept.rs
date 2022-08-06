@@ -1,9 +1,7 @@
 use std::{future::Future, net::SocketAddr};
 
 use monoio::{io::stream::Stream, net::TcpStream};
-
-use super::service::Service;
-use anyhow::anyhow;
+use monoio_gateway_core::{error::GError, service::Service};
 
 pub struct TcpAcceptService {}
 
@@ -13,7 +11,7 @@ where
 {
     type Response = (TcpStream, SocketAddr);
 
-    type Error = anyhow::Error;
+    type Error = GError;
 
     type Future<'cx> = impl Future<Output = Result<Self::Response, Self::Error>>
     where
@@ -25,7 +23,7 @@ where
             if let Some(item) = next {
                 Ok(item)
             } else {
-                Err(anyhow!("error accept tcp stream"))
+                Err(anyhow::anyhow!("error accept tcp stream"))
             }
         }
     }

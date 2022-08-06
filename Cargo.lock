@@ -226,7 +226,17 @@ dependencies = [
  "httparse",
  "log",
  "monoio",
+ "monoio-gateway-core",
+ "monoio-gateway-services",
  "monoio-http",
+ "thiserror",
+]
+
+[[package]]
+name = "monoio-gateway-core"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
  "thiserror",
 ]
 
@@ -237,7 +247,17 @@ dependencies = [
  "anyhow",
  "monoio",
  "monoio-gateway",
+ "monoio-gateway-services",
  "monoio-http",
+]
+
+[[package]]
+name = "monoio-gateway-services"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "monoio",
+ "monoio-gateway-core",
 ]
 
 [[package]]

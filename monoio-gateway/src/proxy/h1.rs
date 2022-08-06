@@ -1,17 +1,11 @@
-
 use std::{future::Future, net::SocketAddr};
 
-
-
-use monoio::io::sink::{SinkExt};
+use monoio::io::sink::SinkExt;
 use monoio::net::TcpStream;
 use monoio::{io::stream::Stream, net::TcpListener};
 
-
 use monoio_http::h1::codec::decoder::{FillPayload, ResponseDecoder};
 use monoio_http::h1::codec::{decoder::RequestDecoder, encoder::GenericEncoder};
-
-
 
 use crate::proxy::copy_stream_sink;
 use crate::{

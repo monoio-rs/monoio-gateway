@@ -1,12 +1,10 @@
-
 use std::future::Future;
 
-use monoio::io::sink::{Sink};
+use monoio::io::sink::Sink;
 use monoio::io::stream::Stream;
 use monoio::io::{AsyncReadRent, AsyncWriteRent, AsyncWriteRentExt};
 use monoio_http::common::IntoParts;
 use monoio_http::h1::codec::decoder::{DecodeError, FillPayload};
-
 
 pub mod h1;
 pub mod h2;

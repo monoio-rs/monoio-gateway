@@ -1,6 +1,5 @@
 use std::future::Future;
 
-pub mod detect;
 pub mod version;
 
 pub trait Detect<I> {

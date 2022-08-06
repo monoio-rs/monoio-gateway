@@ -8,6 +8,9 @@ description = "The gateway plugin for monoio"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+monoio-gateway-core = {path = "../monoio-gateway-core"}
+monoio-gateway-services = {path = "../monoio-gateway-services"}
+
 monoio = {path = "../../monoio/monoio"}
 monoio-http = {path = "../../monoio-http/monoio-http"}
 

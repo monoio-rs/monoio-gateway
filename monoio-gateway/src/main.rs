@@ -9,8 +9,6 @@ pub mod config;
 pub mod discover;
 pub mod dns;
 pub mod gateway;
-pub mod http;
-pub mod layer;
 pub mod proxy;
 
 #[monoio::main(timer_enabled = true)]

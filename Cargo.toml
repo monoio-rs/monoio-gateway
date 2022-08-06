@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "monoio-gateway",
+    "monoio-gateway-core",
+    "monoio-gateway-services",
     # examples
     "examples"
 ]
