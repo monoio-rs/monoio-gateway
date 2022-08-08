@@ -1,6 +1,6 @@
-use std::{future::Future, process::Output};
 
-use crate::service::{Layer, Service};
+
+use crate::service::{Layer};
 
 #[derive(Default)]
 pub struct Identity {

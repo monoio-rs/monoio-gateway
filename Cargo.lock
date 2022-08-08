@@ -247,6 +247,7 @@ dependencies = [
  "anyhow",
  "monoio",
  "monoio-gateway",
+ "monoio-gateway-core",
  "monoio-gateway-services",
  "monoio-http",
 ]

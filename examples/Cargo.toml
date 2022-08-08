@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 monoio-gateway = {path = '../monoio-gateway'}
+monoio-gateway-core = {path = '../monoio-gateway-core'}
 monoio-gateway-services = {path = '../monoio-gateway-services'}
 monoio = {path = '../../monoio/monoio'}
 monoio-http = {path = '../../monoio-http/monoio-http'}
@@ -20,3 +21,7 @@ path = "tcp-proxy.rs"
 [[example]]
 name = "http-proxy"
 path = "http-proxy.rs"
+
+[[example]]
+name = "delay"
+path = "delay.rs"

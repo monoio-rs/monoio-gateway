@@ -1,4 +1,4 @@
-use std::{fmt::Debug, future::Future, iter::Enumerate};
+use std::{future::Future, iter::Enumerate};
 
 use crate::util::{identity::Identity, stack::Stack};
 
@@ -51,16 +51,23 @@ impl Default for ServiceBuilder<Identity> {
 }
 
 impl<L> ServiceBuilder<L> {
-    fn layer<T>(self, s: T) -> ServiceBuilder<Stack<T, L>> {
+    pub fn layer<T>(self, s: T) -> ServiceBuilder<Stack<T, L>> {
         ServiceBuilder {
             layer: Stack::new(s, self.layer),
         }
     }
 
-    fn service<S>(&self, s: S) -> L::Service
+    pub fn service<S>(&self, s: S) -> L::Service
     where
         L: Layer<S>,
     {
         self.layer.layer(s)
     }
+
+}
+
+impl<T,L> ServiceBuilder<Stack<T,L>>{
+    // pub fn into_svc<S>(&self) -> L::Service where L: Layer<S>{
+    //     // self.layer.
+    // }
 }
