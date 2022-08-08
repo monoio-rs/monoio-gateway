@@ -1,4 +1,6 @@
-use std::future::Future;
+use std::{fmt::Debug, future::Future, iter::Enumerate};
+
+use crate::util::{identity::Identity, stack::Stack};
 
 pub trait Service<Request> {
     /// Responses given by the service.
@@ -18,5 +20,47 @@ pub trait Service<Request> {
 pub trait Layer<S> {
     type Service;
 
-    fn layer(&self, inner: S) -> Self::Service;
+    fn layer(&self, service: S) -> Self::Service;
+}
+
+pub struct SvcList<S>
+where
+    S: IntoIterator,
+{
+    inner: Enumerate<S::IntoIter>,
+}
+
+type ListSvcList<S> = SvcList<Vec<S>>;
+
+pub struct ServiceBuilder<L> {
+    layer: L,
+}
+
+impl ServiceBuilder<Identity> {
+    pub fn new() -> Self {
+        Self {
+            layer: Identity::new(),
+        }
+    }
+}
+
+impl Default for ServiceBuilder<Identity> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<L> ServiceBuilder<L> {
+    fn layer<T>(self, s: T) -> ServiceBuilder<Stack<T, L>> {
+        ServiceBuilder {
+            layer: Stack::new(s, self.layer),
+        }
+    }
+
+    fn service<S>(&self, s: S) -> L::Service
+    where
+        L: Layer<S>,
+    {
+        self.layer.layer(s)
+    }
 }

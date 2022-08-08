@@ -5,8 +5,10 @@ use std::{
     vec,
 };
 
+use monoio_gateway_core::error::GError;
+
 use crate::{
-    config::{Config, GError, ProxyConfig},
+    config::{Config, ProxyConfig},
     dns::{http::Domain, tcp::TcpAddress, Resolvable},
     proxy::{h1::HttpProxy, tcp::TcpProxy, Proxy},
 };

@@ -6,13 +6,12 @@ use std::{
 };
 
 use monoio::net::ListenerConfig;
+use monoio_gateway_core::error::GError;
 
 use crate::{
     dns::{http::Domain, tcp::TcpAddress, Resolvable},
     gateway::{GatewayAgent, GatewayAgentable},
 };
-
-pub type GError = anyhow::Error;
 
 #[derive(Clone)]
 pub struct Config<'cx, Addr>
