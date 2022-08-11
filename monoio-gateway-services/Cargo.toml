@@ -8,5 +8,6 @@ edition = "2021"
 [dependencies]
 monoio = {path = "../../monoio/monoio"}
 monoio-gateway-core = {path = "../monoio-gateway-core"}
+monoio-http = {path = "../../monoio-http/monoio-http"}
 
 anyhow = "1"

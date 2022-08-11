@@ -1,8 +1,8 @@
 use crate::service::Layer;
 
 pub struct Stack<I, O> {
-    inner: I,
-    outer: O,
+    pub(crate) inner: I,
+    pub(crate) outer: O,
 }
 
 impl<I, O> Stack<I, O> {

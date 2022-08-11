@@ -1,11 +1,13 @@
-use std::{marker::PhantomData, net::SocketAddr, str::FromStr};
+use std::{net::SocketAddr, str::FromStr};
 
 use monoio::net::ListenerConfig;
 use monoio_gateway::{
-    config::{Config, ServerConfig, TcpInBoundConfig, TcpOutBoundConfig},
-    dns::tcp::TcpAddress,
-    gateway::GatewayAgentable,
+    gateway::{GatewayAgent, GatewayAgentable, TcpInBoundConfig, TcpOutBoundConfig},
     proxy::tcp::TcpProxyConfig,
+};
+use monoio_gateway_core::{
+    config::{Config, ServerConfig},
+    dns::tcp::TcpAddress,
 };
 
 /// a simple tcp proxy
@@ -21,7 +23,6 @@ async fn main() -> Result<(), anyhow::Error> {
                 outbound_addr.clone(),
             ))),
             listener: ListenerConfig::default(),
-            phantom_data: PhantomData,
         })
         .push(TcpProxyConfig {
             inbound: TcpInBoundConfig::new(ServerConfig::new(TcpAddress::new(inbound_addr2))),
@@ -29,9 +30,8 @@ async fn main() -> Result<(), anyhow::Error> {
                 outbound_addr.clone(),
             ))),
             listener: ListenerConfig::default(),
-            phantom_data: PhantomData,
         });
-    let mut agent = config.build();
+    let mut agent = GatewayAgent::<TcpAddress>::build(&config);
     agent.serve().await?;
     Ok(())
 }

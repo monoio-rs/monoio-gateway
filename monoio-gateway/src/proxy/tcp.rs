@@ -1,22 +1,21 @@
 use std::{future::Future, net::SocketAddr};
 
 use monoio::net::{TcpListener, TcpStream};
-
-use crate::{
+use monoio_gateway_core::{
     config::ProxyConfig,
     dns::{tcp::TcpAddress, Resolvable},
-    proxy::copy_data,
+    transfer::copy_data,
 };
 
 use super::Proxy;
 
-pub type TcpProxyConfig<'cx> = ProxyConfig<'cx, TcpAddress>;
+pub type TcpProxyConfig = ProxyConfig<TcpAddress>;
 
-pub struct TcpProxy<'cx> {
-    config: TcpProxyConfig<'cx>,
+pub struct TcpProxy {
+    config: TcpProxyConfig,
 }
 
-impl<'cx> Proxy for TcpProxy<'cx> {
+impl Proxy for TcpProxy {
     type Error = anyhow::Error;
     type OutputFuture<'a> = impl Future<Output = Result<(), Self::Error>> where Self: 'a;
 
@@ -58,8 +57,8 @@ impl<'cx> Proxy for TcpProxy<'cx> {
     }
 }
 
-impl<'cx> TcpProxy<'cx> {
-    pub fn build_with_config(config: &TcpProxyConfig<'cx>) -> Self {
+impl TcpProxy {
+    pub fn build_with_config(config: &TcpProxyConfig) -> Self {
         Self {
             config: config.clone(),
         }

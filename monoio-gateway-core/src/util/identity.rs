@@ -1,6 +1,4 @@
-
-
-use crate::service::{Layer};
+use crate::service::Layer;
 
 #[derive(Default)]
 pub struct Identity {

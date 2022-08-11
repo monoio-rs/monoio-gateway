@@ -1,4 +1,5 @@
 use std::{
+    fmt::{Display, Write},
     future::Future,
     net::{SocketAddr, ToSocketAddrs},
 };
@@ -25,23 +26,19 @@ impl Domain {
         }
     }
 
-    pub fn version(&self) -> monoio_gateway_core::http::version::Type {
+    pub fn version(&self) -> crate::http::version::Type {
         let v = self.uri.scheme_str().or_else(|| Some("http")).unwrap();
         return if v == "https" {
-            monoio_gateway_core::http::version::Type::HTTPS
+            crate::http::version::Type::HTTPS
         } else {
-            monoio_gateway_core::http::version::Type::HTTP
+            crate::http::version::Type::HTTP
         };
     }
 
     pub fn port(&self) -> u16 {
         match self.version() {
-            monoio_gateway_core::http::version::Type::HTTP => {
-                self.uri.port_u16().or_else(|| Some(80)).unwrap()
-            }
-            monoio_gateway_core::http::version::Type::HTTPS => {
-                self.uri.port_u16().or_else(|| Some(443)).unwrap()
-            }
+            crate::http::version::Type::HTTP => self.uri.port_u16().or_else(|| Some(80)).unwrap(),
+            crate::http::version::Type::HTTPS => self.uri.port_u16().or_else(|| Some(443)).unwrap(),
         }
     }
 
@@ -53,11 +50,9 @@ impl Domain {
 impl Resolvable for Domain {
     type Error = anyhow::Error;
 
-    type Item<'a> = SocketAddr
-    where
-        Self: 'a;
+    type Item = SocketAddr;
 
-    type ResolveFuture<'a> = impl Future<Output = Result<Option<Self::Item<'a>>, Self::Error>>
+    type ResolveFuture<'a> = impl Future<Output = Result<Option<Self::Item>, Self::Error>>
     where
         Self: 'a;
 
@@ -73,5 +68,11 @@ impl Resolvable for Domain {
                 Ok(None)
             }
         }
+    }
+}
+
+impl Display for Domain {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{}", self.uri)
     }
 }

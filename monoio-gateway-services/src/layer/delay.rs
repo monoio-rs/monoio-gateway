@@ -1,8 +1,6 @@
 use std::{future::Future, time::Duration};
 
-use monoio_gateway_core::{
-    service::{Layer, Service},
-};
+use monoio_gateway_core::service::{Layer, Service};
 
 pub struct DelayService<T> {
     inner: T,
@@ -23,9 +21,9 @@ where
 
     fn call(&mut self, req: R) -> Self::Future<'_> {
         async move {
+            let resp = self.inner.call(req).await;
             monoio::time::sleep(self.delay.to_owned()).await;
-
-            self.inner.call(req).await
+            resp
         }
     }
 }

@@ -1,11 +1,11 @@
-use std::marker::PhantomData;
-
 use monoio::net::ListenerConfig;
 use monoio_gateway::{
-    config::{Config, HttpInBoundConfig, HttpOutBoundConfig, ServerConfig},
-    dns::http::Domain,
-    gateway::GatewayAgentable,
+    gateway::{GatewayAgent, GatewayAgentable, HttpInBoundConfig, HttpOutBoundConfig},
     proxy::h1::HttpProxyConfig,
+};
+use monoio_gateway_core::{
+    config::{Config, ServerConfig},
+    dns::http::Domain,
 };
 
 #[monoio::main(timer_enabled = true)]
@@ -17,9 +17,8 @@ async fn main() -> Result<(), anyhow::Error> {
         inbound: HttpInBoundConfig::new(ServerConfig::new(inbound_addr)),
         outbound: HttpOutBoundConfig::new(ServerConfig::new(outbound_addr)),
         listener: ListenerConfig::default(),
-        phantom_data: PhantomData,
     });
-    let mut agent = config.build();
+    let mut agent = GatewayAgent::<Domain>::build(&config);
     match agent.serve().await {
         Ok(_) => {}
         Err(e) => {

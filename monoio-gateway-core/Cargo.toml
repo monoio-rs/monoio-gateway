@@ -6,5 +6,9 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+monoio = {path = "../../monoio/monoio"}
+monoio-http = {path = "../../monoio-http/monoio-http"}
+
 thiserror = "1"
 anyhow = "1"
+http = "0.2"

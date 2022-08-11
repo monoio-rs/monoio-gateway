@@ -63,11 +63,4 @@ impl<L> ServiceBuilder<L> {
     {
         self.layer.layer(s)
     }
-
-}
-
-impl<T,L> ServiceBuilder<Stack<T,L>>{
-    // pub fn into_svc<S>(&self) -> L::Service where L: Layer<S>{
-    //     // self.layer.
-    // }
 }

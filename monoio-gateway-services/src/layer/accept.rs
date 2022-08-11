@@ -1,15 +1,24 @@
-use std::{future::Future, net::SocketAddr};
+use std::{fmt::Display, future::Future, net::SocketAddr};
 
 use monoio::{io::stream::Stream, net::TcpStream};
-use monoio_gateway_core::{error::GError, service::Service};
+use monoio_gateway_core::{
+    error::GError,
+    service::{Layer, Service},
+};
 
-pub struct TcpAcceptService {}
+pub struct TcpAcceptService<T> {
+    inner: T,
+}
 
-impl<L> Service<L> for TcpAcceptService
+pub type TcpAccept = (TcpStream, SocketAddr);
+
+impl<L, T> Service<L> for TcpAcceptService<T>
 where
-    L: Stream<Item = (TcpStream, SocketAddr)>,
+    L: Stream<Item = TcpAccept>,
+    T: Service<TcpAccept>,
+    T::Error: Display,
 {
-    type Response = (TcpStream, SocketAddr);
+    type Response = T::Response;
 
     type Error = GError;
 
@@ -21,10 +30,24 @@ where
         async move {
             let next = stream.next().await;
             if let Some(item) = next {
-                Ok(item)
+                match self.inner.call(item).await {
+                    Ok(resp) => Ok(resp),
+                    Err(err) => Err(anyhow::anyhow!("{}", err)),
+                }
             } else {
                 Err(anyhow::anyhow!("error accept tcp stream"))
             }
         }
+    }
+}
+
+#[derive(Default)]
+pub struct TcpAcceptLayer {}
+
+impl<S> Layer<S> for TcpAcceptLayer {
+    type Service = TcpAcceptService<S>;
+
+    fn layer(&self, service: S) -> Self::Service {
+        TcpAcceptService { inner: service }
     }
 }

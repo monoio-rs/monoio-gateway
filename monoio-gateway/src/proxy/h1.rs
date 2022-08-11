@@ -4,24 +4,22 @@ use monoio::io::sink::SinkExt;
 use monoio::net::TcpStream;
 use monoio::{io::stream::Stream, net::TcpListener};
 
+use monoio_gateway_core::config::ProxyConfig;
+use monoio_gateway_core::dns::http::Domain;
+use monoio_gateway_core::dns::Resolvable;
+use monoio_gateway_core::transfer::copy_stream_sink;
 use monoio_http::h1::codec::decoder::{FillPayload, ResponseDecoder};
 use monoio_http::h1::codec::{decoder::RequestDecoder, encoder::GenericEncoder};
 
-use crate::proxy::copy_stream_sink;
-use crate::{
-    config::ProxyConfig,
-    dns::{http::Domain, Resolvable},
-};
-
 use super::Proxy;
 
-pub type HttpProxyConfig<'cx> = ProxyConfig<'cx, Domain>;
+pub type HttpProxyConfig = ProxyConfig<Domain>;
 
-pub struct HttpProxy<'cx> {
-    config: HttpProxyConfig<'cx>,
+pub struct HttpProxy {
+    config: HttpProxyConfig,
 }
 
-impl<'cx> Proxy for HttpProxy<'cx> {
+impl Proxy for HttpProxy {
     type Error = anyhow::Error;
     type OutputFuture<'a> = impl Future<Output = Result<(), Self::Error>> where Self: 'a;
 
@@ -113,8 +111,8 @@ impl<'cx> Proxy for HttpProxy<'cx> {
     }
 }
 
-impl<'cx> HttpProxy<'cx> {
-    pub fn build_with_config(config: &HttpProxyConfig<'cx>) -> Self {
+impl HttpProxy {
+    pub fn build_with_config(config: &HttpProxyConfig) -> Self {
         Self {
             config: config.clone(),
         }

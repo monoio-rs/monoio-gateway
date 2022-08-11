@@ -237,6 +237,9 @@ name = "monoio-gateway-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "http",
+ "monoio",
+ "monoio-http",
  "thiserror",
 ]
 
@@ -259,6 +262,7 @@ dependencies = [
  "anyhow",
  "monoio",
  "monoio-gateway-core",
+ "monoio-http",
 ]
 
 [[package]]

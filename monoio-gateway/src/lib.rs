@@ -2,9 +2,7 @@
 #![feature(type_alias_impl_trait)]
 
 pub mod balance;
-pub mod config;
 pub mod discover;
-pub mod dns;
 pub mod gateway;
 pub mod proxy;
 

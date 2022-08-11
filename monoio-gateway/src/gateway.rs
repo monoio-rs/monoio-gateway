@@ -1,63 +1,41 @@
-use std::{
-    future::Future,
-    marker::PhantomData,
-    net::{SocketAddr, ToSocketAddrs},
-    vec,
+use std::{future::Future, vec};
+
+use monoio_gateway_core::{
+    config::{Config, InBoundConfig, OutBoundConfig, ProxyConfig},
+    dns::{http::Domain, tcp::TcpAddress},
+    error::GError,
 };
 
-use monoio_gateway_core::error::GError;
+use crate::proxy::{h1::HttpProxy, tcp::TcpProxy, Proxy};
 
-use crate::{
-    config::{Config, ProxyConfig},
-    dns::{http::Domain, tcp::TcpAddress, Resolvable},
-    proxy::{h1::HttpProxy, tcp::TcpProxy, Proxy},
-};
-
-pub struct GatewayAgent<'cx, Addr>
-where
-    Addr: Resolvable<Error = GError> + 'cx,
-    Addr::Item<'cx>: ToSocketAddrs + 'cx,
-    Addr::ResolveFuture<'cx>: Future<Output = Result<Option<SocketAddr>, GError>>,
-{
-    config: Config<'cx, Addr>,
-    gateways: Vec<Gateway<'cx, Addr>>,
-
-    phantom_data: PhantomData<&'cx Addr>,
+pub struct GatewayAgent<Addr> {
+    config: Config<Addr>,
+    gateways: Vec<Gateway<Addr>>,
 }
 
-pub trait Gatewayable<'cx, Addr>
-where
-    Addr: Resolvable<Error = GError> + 'cx,
-    Addr::Item<'cx>: ToSocketAddrs + 'cx,
-    Addr::ResolveFuture<'cx>: Future<Output = Result<Option<SocketAddr>, GError>>,
-{
-    type GatewayFuture: Future<Output = Result<(), GError>>
+pub trait Gatewayable<Addr> {
+    type GatewayFuture<'cx>: Future<Output = Result<(), GError>>
     where
         Self: 'cx;
 
-    fn new(config: ProxyConfig<'cx, Addr>) -> Self;
+    fn new(config: ProxyConfig<Addr>) -> Self;
 
-    fn serve(&'cx self) -> Self::GatewayFuture;
+    fn serve(&self) -> Self::GatewayFuture<'_>;
 }
 
 #[derive(Clone)]
-pub struct Gateway<'cx, Addr> {
-    config: ProxyConfig<'cx, Addr>,
-
-    phantom_data: PhantomData<&'cx Addr>,
+pub struct Gateway<Addr> {
+    config: ProxyConfig<Addr>,
 }
 
-impl<'cx> Gatewayable<'cx, TcpAddress> for Gateway<'cx, TcpAddress> {
-    type GatewayFuture = impl Future<Output = Result<(), GError>> where Self: 'cx;
+impl Gatewayable<TcpAddress> for Gateway<TcpAddress> {
+    type GatewayFuture<'cx> = impl Future<Output = Result<(), GError>> where Self: 'cx;
 
-    fn new(config: ProxyConfig<'cx, TcpAddress>) -> Self {
-        Self {
-            config,
-            phantom_data: PhantomData,
-        }
+    fn new(config: ProxyConfig<TcpAddress>) -> Self {
+        Self { config }
     }
 
-    fn serve(&'cx self) -> Self::GatewayFuture {
+    fn serve(&self) -> Self::GatewayFuture<'_> {
         async move {
             let mut proxy = TcpProxy::build_with_config(&self.config);
             proxy.io_loop().await
@@ -65,17 +43,14 @@ impl<'cx> Gatewayable<'cx, TcpAddress> for Gateway<'cx, TcpAddress> {
     }
 }
 
-impl<'cx> Gatewayable<'cx, Domain> for Gateway<'cx, Domain> {
-    type GatewayFuture = impl Future<Output = Result<(), GError>> where Self: 'cx;
+impl Gatewayable<Domain> for Gateway<Domain> {
+    type GatewayFuture<'cx> = impl Future<Output = Result<(), GError>> where Self: 'cx;
 
-    fn new(config: ProxyConfig<'cx, Domain>) -> Self {
-        Self {
-            config,
-            phantom_data: PhantomData,
-        }
+    fn new(config: ProxyConfig<Domain>) -> Self {
+        Self { config }
     }
 
-    fn serve(&'cx self) -> Self::GatewayFuture {
+    fn serve<'cx>(&self) -> Self::GatewayFuture<'_> {
         async move {
             let mut proxy = HttpProxy::build_with_config(&self.config);
             proxy.io_loop().await
@@ -91,11 +66,11 @@ pub trait GatewayAgentable {
 
     fn build(config: &Self::Config) -> Self;
 
-    fn serve(&'_ mut self) -> Self::Future<'_>;
+    fn serve(&mut self) -> Self::Future<'_>;
 }
 
-impl GatewayAgentable for GatewayAgent<'static, TcpAddress> {
-    type Config = Config<'static, TcpAddress>;
+impl GatewayAgentable for GatewayAgent<TcpAddress> {
+    type Config = Config<TcpAddress>;
 
     type Future<'g> = impl Future<Output = Result<(), anyhow::Error>>
     where
@@ -110,7 +85,6 @@ impl GatewayAgentable for GatewayAgent<'static, TcpAddress> {
         GatewayAgent {
             config: config.clone(),
             gateways,
-            phantom_data: PhantomData,
         }
     }
 
@@ -135,8 +109,8 @@ impl GatewayAgentable for GatewayAgent<'static, TcpAddress> {
     }
 }
 
-impl GatewayAgentable for GatewayAgent<'static, Domain> {
-    type Config = Config<'static, Domain>;
+impl GatewayAgentable for GatewayAgent<Domain> {
+    type Config = Config<Domain>;
 
     type Future<'cx> = impl Future<Output = Result<(), anyhow::Error>>
     where
@@ -151,7 +125,6 @@ impl GatewayAgentable for GatewayAgent<'static, Domain> {
         GatewayAgent {
             config: config.clone(),
             gateways,
-            phantom_data: PhantomData,
         }
     }
 
@@ -175,3 +148,12 @@ impl GatewayAgentable for GatewayAgent<'static, Domain> {
         }
     }
 }
+
+pub type TcpInBoundConfig = InBoundConfig<TcpAddress>;
+pub type TcpOutBoundConfig = OutBoundConfig<TcpAddress>;
+
+pub type HttpInBoundConfig = InBoundConfig<Domain>;
+pub type HttpOutBoundConfig = OutBoundConfig<Domain>;
+
+pub type TcpConfig = Config<TcpAddress>;
+pub type HttpConfig = Config<Domain>;
