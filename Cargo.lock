@@ -199,7 +199,6 @@ dependencies = [
  "mio",
  "monoio-macros",
  "nix",
- "os_socketaddr",
  "pin-project-lite",
  "scoped-tls",
  "socket2",
@@ -303,16 +302,6 @@ name = "once_cell"
 version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "18a6dbe30758c9f83eb00cbea4ac95966305f5a7772f3f42ebfc7fc7eddbd8e1"
-
-[[package]]
-name = "os_socketaddr"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2090877fe9aa15a914d863207ea6d2062d94c1178a854b1571374f9be1a045fb"
-dependencies = [
- "libc",
- "winapi",
-]
 
 [[package]]
 name = "pin-project-lite"

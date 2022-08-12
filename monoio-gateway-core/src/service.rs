@@ -1,4 +1,4 @@
-use std::{future::Future, iter::Enumerate};
+use std::{fmt::Display, future::Future, iter::Enumerate};
 
 use crate::util::{identity::Identity, stack::Stack};
 
@@ -6,7 +6,7 @@ pub trait Service<Request> {
     /// Responses given by the service.
     type Response;
     /// Errors produced by the service.
-    type Error;
+    type Error: Display;
 
     /// The future response value.
     type Future<'cx>: Future<Output = Result<Self::Response, Self::Error>>

@@ -1,10 +1,8 @@
 use std::{
     fmt::{Display, Write},
     future::Future,
-    net::{SocketAddr, ToSocketAddrs},
 };
 
-use anyhow::anyhow;
 use http::Uri;
 
 use super::Resolvable;
@@ -50,7 +48,7 @@ impl Domain {
 impl Resolvable for Domain {
     type Error = anyhow::Error;
 
-    type Item = SocketAddr;
+    type Item = String;
 
     type ResolveFuture<'a> = impl Future<Output = Result<Option<Self::Item>, Self::Error>>
     where
@@ -60,10 +58,7 @@ impl Resolvable for Domain {
         async {
             let host = self.uri.host();
             if let Some(host) = host {
-                match host.to_socket_addrs() {
-                    Ok(mut addrs) => Ok(addrs.next()),
-                    Err(e) => Err(anyhow!("error resolve domain {}: {}.", host, e)),
-                }
+                Ok(Some(host.to_string()))
             } else {
                 Ok(None)
             }

@@ -1,4 +1,4 @@
-use std::{future::Future, net::SocketAddr};
+use std::future::Future;
 
 use monoio::io::sink::SinkExt;
 use monoio::net::TcpStream;
@@ -118,7 +118,7 @@ impl HttpProxy {
         }
     }
 
-    pub async fn inbound_addr(&self) -> Result<SocketAddr, anyhow::Error> {
+    pub async fn inbound_addr(&self) -> Result<String, anyhow::Error> {
         let resolved = self.config.inbound.server.addr.resolve().await?;
         if let Some(res) = resolved {
             Ok(res)
@@ -127,7 +127,7 @@ impl HttpProxy {
         }
     }
 
-    pub async fn outbound_addr(&self) -> Result<SocketAddr, anyhow::Error> {
+    pub async fn outbound_addr(&self) -> Result<String, anyhow::Error> {
         let resolved = self.config.outbound.server.addr.resolve().await?;
         if let Some(res) = resolved {
             Ok(res)

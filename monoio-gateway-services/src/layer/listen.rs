@@ -1,5 +1,6 @@
 use std::{future::Future, net::ToSocketAddrs};
 
+use anyhow::bail;
 use monoio::net::TcpListener;
 use monoio_gateway_core::{
     config::ProxyConfig,
@@ -17,7 +18,7 @@ impl<A, T> Service<()> for TcpListenService<A, T>
 where
     A: Resolvable,
     A::Item: ToSocketAddrs,
-    T: Service<TcpListener, Error = GError>,
+    T: Service<TcpListener>,
 {
     type Response = T::Response;
 
@@ -40,7 +41,10 @@ where
                                 )
                                 .expect("err bind address");
                                 // call listener
-                                Ok(self.inner.call(listener).await?)
+                                match self.inner.call(listener).await {
+                                    Ok(resp) => Ok(resp),
+                                    Err(err) => bail!("{}", err),
+                                }
                             }
                             Err(err) => anyhow::bail!("{}", err),
                         }
