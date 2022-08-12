@@ -1,24 +1,26 @@
 use std::{fmt::Display, future::Future, net::SocketAddr};
 
-use monoio::{io::stream::Stream, net::TcpStream};
+use anyhow::bail;
+use log::info;
+use monoio::net::{TcpListener, TcpStream};
 use monoio_gateway_core::{
     error::GError,
     service::{Layer, Service},
 };
 
+#[derive(Clone)]
 pub struct TcpAcceptService<T> {
     inner: T,
 }
 
 pub type TcpAccept = (TcpStream, SocketAddr);
 
-impl<L, T> Service<L> for TcpAcceptService<T>
+impl<T> Service<TcpListener> for TcpAcceptService<T>
 where
-    L: Stream<Item = TcpAccept>,
-    T: Service<TcpAccept>,
+    T: Service<TcpAccept> + 'static,
     T::Error: Display,
 {
-    type Response = T::Response;
+    type Response = Option<T::Response>;
 
     type Error = GError;
 
@@ -26,16 +28,22 @@ where
     where
         Self: 'cx;
 
-    fn call(&mut self, mut stream: L) -> Self::Future<'_> {
+    fn call(&mut self, listener: TcpListener) -> Self::Future<'_> {
         async move {
-            let next = stream.next().await;
-            if let Some(item) = next {
-                match self.inner.call(item).await {
-                    Ok(resp) => Ok(resp),
-                    Err(err) => Err(anyhow::anyhow!("{}", err)),
+            loop {
+                let mut inner_clone = self.inner.to_owned();
+                match listener.accept().await {
+                    Ok(accept) => {
+                        info!("accept a connection");
+                        monoio::spawn(async move {
+                            // let inner_svc = inner_clone;
+                            match inner_clone.call(accept).await {
+                                _ => {}
+                            }
+                        });
+                    }
+                    Err(err) => bail!("{}", err),
                 }
-            } else {
-                Err(anyhow::anyhow!("error accept tcp stream"))
             }
         }
     }

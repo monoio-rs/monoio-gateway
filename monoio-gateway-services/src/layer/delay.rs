@@ -1,7 +1,9 @@
 use std::{future::Future, time::Duration};
 
+use log::info;
 use monoio_gateway_core::service::{Layer, Service};
 
+#[derive(Clone)]
 pub struct DelayService<T> {
     inner: T,
     delay: Duration,
@@ -21,8 +23,9 @@ where
 
     fn call(&mut self, req: R) -> Self::Future<'_> {
         async move {
-            let resp = self.inner.call(req).await;
+            info!("lets delay for {}", self.delay.as_secs());
             monoio::time::sleep(self.delay.to_owned()).await;
+            let resp = self.inner.call(req).await;
             resp
         }
     }

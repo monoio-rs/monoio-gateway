@@ -1,6 +1,7 @@
 use std::future::Future;
 
 use anyhow::bail;
+use log::info;
 use monoio::net::TcpStream;
 use monoio_gateway_core::{
     dns::Resolvable,
@@ -9,7 +10,7 @@ use monoio_gateway_core::{
 };
 
 use super::{accept::TcpAccept, transfer::TransferParams};
-
+#[derive(Clone)]
 pub struct DialRemote<T, A> {
     inner: T,
     target: A,
@@ -30,6 +31,7 @@ where
 
     fn call(&mut self, local_stream: TcpAccept) -> Self::Future<'_> {
         async {
+            info!("dailing remote");
             match self.target.resolve().await {
                 Ok(Some(domain)) => match TcpStream::connect(domain).await {
                     Ok(remote_stream) => {
@@ -39,7 +41,7 @@ where
                         }
                     }
                     Err(err) => {
-                        bail!("{}", err)
+                        bail!("error connect to remote: {}", err)
                     }
                 },
                 _ => {

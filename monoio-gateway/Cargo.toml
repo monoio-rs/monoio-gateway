@@ -22,3 +22,5 @@ anyhow = "1"
 # logger
 env_logger = "0.9"
 log = "0.4"
+
+tower = {version = "0.4", features = ["full"]}

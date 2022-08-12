@@ -4,7 +4,7 @@ use monoio_gateway_core::{
     error::GError,
     service::{Layer, Service},
 };
-
+#[derive(Clone)]
 pub struct TimeoutService<T> {
     inner: T,
     timeout: Duration,

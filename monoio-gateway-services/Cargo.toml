@@ -11,3 +11,4 @@ monoio-gateway-core = {path = "../monoio-gateway-core"}
 monoio-http = {path = "../../monoio-http/monoio-http"}
 
 anyhow = "1"
+log = "0.4"

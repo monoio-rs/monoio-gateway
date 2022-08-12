@@ -1,11 +1,12 @@
 use std::{
     fmt::{Display, Write},
     future::Future,
+    net::SocketAddr,
 };
 
 use http::Uri;
 
-use super::Resolvable;
+use super::{Resolvable, ToSocketAddr};
 
 #[derive(Clone)]
 pub struct Domain {
@@ -43,31 +44,36 @@ impl Domain {
     pub fn host(&self) -> String {
         self.uri.authority().unwrap().host().to_owned()
     }
+
+    pub fn listen_addr(&self, wide: bool) -> String {
+        if wide {
+            format!("0.0.0.0:{}", self.port())
+        } else {
+            format!("127.0.0.1:{}", self.port())
+        }
+    }
 }
 
 impl Resolvable for Domain {
     type Error = anyhow::Error;
 
-    type Item = String;
-
-    type ResolveFuture<'a> = impl Future<Output = Result<Option<Self::Item>, Self::Error>>
+    type ResolveFuture<'a> = impl Future<Output = Result<Option<SocketAddr>, Self::Error>>
     where
         Self: 'a;
 
     fn resolve(&self) -> Self::ResolveFuture<'_> {
-        async {
-            let host = self.uri.host();
-            if let Some(host) = host {
-                Ok(Some(host.to_string()))
-            } else {
-                Ok(None)
-            }
-        }
+        async { Ok(Some(self.get_addr())) }
     }
 }
 
 impl Display for Domain {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}", self.uri)
+    }
+}
+
+impl ToSocketAddr for Domain {
+    fn get_addr(&self) -> SocketAddr {
+        SocketAddr::from(self.listen_addr(false).parse::<SocketAddr>().unwrap())
     }
 }

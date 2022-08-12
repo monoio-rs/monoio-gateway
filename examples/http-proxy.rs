@@ -10,7 +10,7 @@ use monoio_gateway_core::{
 
 #[monoio::main(timer_enabled = true)]
 async fn main() -> Result<(), anyhow::Error> {
-    let inbound_addr = Domain::new("http", "python.server:2000", "/");
+    let inbound_addr = Domain::new("http", "python.server:2001", "/");
     let outbound_addr = Domain::new("http", "127.0.0.1:8000", "/");
 
     let config: Config<Domain> = Config::new().push(HttpProxyConfig {

@@ -3,6 +3,7 @@ use std::future::Future;
 use monoio::io::AsyncReadRent;
 use monoio_gateway_core::{http::Detect, service::Service};
 
+#[derive(Clone)]
 pub struct DetectService<D> {
     detect: D,
 }

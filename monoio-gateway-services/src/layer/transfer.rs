@@ -1,9 +1,10 @@
 use std::future::Future;
 
+use log::info;
 use monoio::net::TcpStream;
 use monoio_gateway_core::{error::GError, service::Service, transfer::copy_data};
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct TransferService;
 
 pub type TransferParams = (TcpStream, TcpStream);
@@ -19,6 +20,7 @@ impl Service<TransferParams> for TransferService {
 
     fn call(&mut self, req: TransferParams) -> Self::Future<'_> {
         async {
+            info!("transfer data");
             let mut local_io = req.0;
             let mut remote_io = req.1;
             let (mut local_read, mut local_write) = local_io.split();

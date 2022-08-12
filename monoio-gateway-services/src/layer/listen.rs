@@ -1,6 +1,7 @@
 use std::{future::Future, net::ToSocketAddrs};
 
 use anyhow::bail;
+use log::info;
 use monoio::net::TcpListener;
 use monoio_gateway_core::{
     config::ProxyConfig,
@@ -8,7 +9,7 @@ use monoio_gateway_core::{
     error::GError,
     service::{Layer, Service},
 };
-
+#[derive(Clone)]
 pub struct TcpListenService<A, T> {
     inner: T,
     proxy_config: ProxyConfig<A>,
@@ -17,7 +18,6 @@ pub struct TcpListenService<A, T> {
 impl<A, T> Service<()> for TcpListenService<A, T>
 where
     A: Resolvable,
-    A::Item: ToSocketAddrs,
     T: Service<TcpListener>,
 {
     type Response = T::Response;
@@ -30,6 +30,7 @@ where
 
     fn call(&mut self, _: ()) -> Self::Future<'_> {
         async {
+            info!("binding address: {}", self.proxy_config.inbound.server.addr);
             match self.proxy_config.inbound.server.addr.resolve().await {
                 Ok(domain) => {
                     if let Some(socket_addr) = domain {
