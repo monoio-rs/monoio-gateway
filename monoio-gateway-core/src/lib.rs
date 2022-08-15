@@ -8,3 +8,7 @@ pub mod http;
 pub mod service;
 pub mod transfer;
 pub mod util;
+
+pub(crate) trait Builder<Config> {
+    fn build_with_config(config: Config) -> Self;
+}

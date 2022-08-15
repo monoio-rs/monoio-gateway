@@ -1,5 +1,6 @@
 use std::future::Future;
 
+pub mod router;
 pub mod version;
 
 pub trait Detect<I> {
