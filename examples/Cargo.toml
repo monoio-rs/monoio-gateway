@@ -23,5 +23,5 @@ name = "http-proxy"
 path = "http-proxy.rs"
 
 [[example]]
-name = "delay"
-path = "delay.rs"
+name = "router-with-delay"
+path = "router-with-delay.rs"

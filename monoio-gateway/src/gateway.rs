@@ -1,16 +1,16 @@
-use std::{future::Future, vec};
+use std::{future::Future};
 
 use monoio_gateway_core::{
     config::{Config, InBoundConfig, OutBoundConfig, ProxyConfig},
     dns::{http::Domain, tcp::TcpAddress},
     error::GError,
+    http::router::RouterConfig,
 };
 
 use crate::proxy::{h1::HttpProxy, tcp::TcpProxy, Proxy};
 
 pub struct GatewayAgent<Addr> {
-    config: Config<Addr>,
-    gateways: Vec<Gateway<Addr>>,
+    config: Vec<RouterConfig<Addr>>,
 }
 
 pub trait Gatewayable<Addr> {
@@ -70,83 +70,59 @@ pub trait GatewayAgentable {
 }
 
 impl GatewayAgentable for GatewayAgent<TcpAddress> {
-    type Config = Config<TcpAddress>;
+    type Config = Vec<RouterConfig<TcpAddress>>;
 
     type Future<'g> = impl Future<Output = Result<(), anyhow::Error>>
     where
         Self: 'g;
 
     fn build(config: &Self::Config) -> Self {
-        let gateways: Vec<Gateway<TcpAddress>> = config
-            .proxies
-            .iter()
-            .map(|proxy_config| Gateway::new(proxy_config.clone()))
-            .collect();
         GatewayAgent {
             config: config.clone(),
-            gateways,
         }
     }
 
     fn serve(&'_ mut self) -> Self::Future<'_> {
         async {
-            let mut handlers = vec![];
-            for gw in self.gateways.iter_mut() {
-                let clone = gw.clone();
-                let f = monoio::spawn(async move {
-                    match clone.serve().await {
-                        Ok(()) => {}
-                        Err(err) => eprintln!("Error: {}", err),
-                    }
-                });
-                handlers.push(f);
-            }
-            for handle in handlers {
-                let _ = handle.await;
-            }
+            // let mut handlers = vec![];
+            // for gw in self.gateways.iter_mut() {
+            //     let clone = gw.clone();
+            //     let f = monoio::spawn(async move {
+            //         match clone.serve().await {
+            //             Ok(()) => {}
+            //             Err(err) => eprintln!("Error: {}", err),
+            //         }
+            //     });
+            //     handlers.push(f);
+            // }
+            // for handle in handlers {
+            //     let _ = handle.await;
+            // }
             Ok(())
         }
     }
 }
 
 impl GatewayAgentable for GatewayAgent<Domain> {
-    type Config = Config<Domain>;
+    type Config = Vec<RouterConfig<Domain>>;
 
     type Future<'cx> = impl Future<Output = Result<(), anyhow::Error>>
     where
         Self: 'cx;
 
     fn build(config: &Self::Config) -> Self {
-        let gateways: Vec<Gateway<Domain>> = config
-            .proxies
-            .iter()
-            .map(|proxy_config| Gateway::new(proxy_config.clone()))
-            .collect();
         GatewayAgent {
             config: config.clone(),
-            gateways,
         }
     }
 
-    fn serve(&'_ mut self) -> Self::Future<'_> {
-        async {
-            let mut handlers = vec![];
-            for gw in self.gateways.iter_mut() {
-                let clone = gw.clone();
-                let f = monoio::spawn(async move {
-                    match clone.serve().await {
-                        Ok(()) => {}
-                        Err(e) => eprintln!("Error: {}", e),
-                    }
-                });
-                handlers.push(f);
-            }
-            for handle in handlers {
-                let _ = handle.await;
-            }
-            Ok(())
-        }
+    fn serve(&mut self) -> Self::Future<'_> {
+        async { Ok(()) }
     }
+}
+
+impl GatewayAgent<Domain> {
+    pub fn build_svc(&self) {}
 }
 
 pub type TcpInBoundConfig = InBoundConfig<TcpAddress>;

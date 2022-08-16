@@ -12,3 +12,4 @@ monoio-http = {path = "../../monoio-http/monoio-http"}
 
 anyhow = "1"
 log = "0.4"
+http = "0.2"

@@ -1,23 +1,22 @@
-use std::{future::Future, net::ToSocketAddrs};
+use std::{future::Future};
 
 use anyhow::bail;
 use log::info;
-use monoio::net::TcpListener;
+use monoio::net::{ListenerConfig, TcpListener};
 use monoio_gateway_core::{
-    config::ProxyConfig,
-    dns::Resolvable,
     error::GError,
     service::{Layer, Service},
 };
 #[derive(Clone)]
-pub struct TcpListenService<A, T> {
+pub struct TcpListenService<T> {
     inner: T,
-    proxy_config: ProxyConfig<A>,
+    listen_port: u16,
+    allow_lan: bool,
+    listener_config: ListenerConfig,
 }
 
-impl<A, T> Service<()> for TcpListenService<A, T>
+impl<T> Service<()> for TcpListenService<T>
 where
-    A: Resolvable,
     T: Service<TcpListener>,
 {
     type Response = T::Response;
@@ -30,55 +29,57 @@ where
 
     fn call(&mut self, _: ()) -> Self::Future<'_> {
         async {
-            info!("binding address: {}", self.proxy_config.inbound.server.addr);
-            match self.proxy_config.inbound.server.addr.resolve().await {
-                Ok(domain) => {
-                    if let Some(socket_addr) = domain {
-                        match socket_addr.to_socket_addrs() {
-                            Ok(mut addr) => {
-                                let listener = TcpListener::bind_with_config(
-                                    addr.next().unwrap(),
-                                    &self.proxy_config.listener,
-                                )
-                                .expect("err bind address");
-                                // call listener
-                                match self.inner.call(listener).await {
-                                    Ok(resp) => Ok(resp),
-                                    Err(err) => bail!("{}", err),
-                                }
-                            }
-                            Err(err) => anyhow::bail!("{}", err),
-                        }
-                    } else {
-                        anyhow::bail!("address is none")
-                    }
-                }
-                Err(_err) => anyhow::bail!("err resolve address"),
+            info!("binding port: {}", self.listen_port);
+            let listen_addr = if self.allow_lan {
+                format!("0.0.0.0:{}", self.listen_port)
+            } else {
+                format!("127.0.0.1:{}", self.listen_port)
+            };
+            let listener = TcpListener::bind_with_config(listen_addr, &self.listener_config)
+                .expect("err bind address");
+            // call listener
+            match self.inner.call(listener).await {
+                Ok(resp) => Ok(resp),
+                Err(e) => bail!("{}", e),
             }
         }
     }
 }
 
-pub struct TcpListenLayer<A> {
-    proxy_config: ProxyConfig<A>,
+#[derive(Default)]
+pub struct TcpListenLayer {
+    listen_port: u16,
+    allow_lan: bool,
+    listener_config: ListenerConfig,
 }
 
-impl<A> TcpListenLayer<A> {
-    pub fn new(proxy_config: ProxyConfig<A>) -> Self {
-        TcpListenLayer { proxy_config }
+impl TcpListenLayer {
+    pub fn new(listen_port: u16, allow_lan: bool) -> Self {
+        TcpListenLayer {
+            listen_port,
+            allow_lan,
+            ..Default::default()
+        }
+    }
+
+    pub fn new_allow_lan(listen_port: u16) -> Self {
+        TcpListenLayer {
+            listen_port,
+            allow_lan: true,
+            ..Default::default()
+        }
     }
 }
 
-impl<A, S> Layer<S> for TcpListenLayer<A>
-where
-    A: Clone,
-{
-    type Service = TcpListenService<A, S>;
+impl<S> Layer<S> for TcpListenLayer {
+    type Service = TcpListenService<S>;
 
     fn layer(&self, service: S) -> Self::Service {
         TcpListenService {
             inner: service,
-            proxy_config: self.proxy_config.clone(),
+            allow_lan: self.allow_lan,
+            listener_config: self.listener_config.clone(),
+            listen_port: self.listen_port,
         }
     }
 }

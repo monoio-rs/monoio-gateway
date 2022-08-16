@@ -1,15 +1,15 @@
 use std::{
     fmt::{Display, Write},
     future::Future,
-    net::SocketAddr,
 };
 
-use http::Uri;
+use anyhow::bail;
+use http::{uri::Authority, Uri};
 use serde::{Deserialize, Serialize};
 
-use super::{Resolvable, ToSocketAddr};
+use super::Resolvable;
 
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, PartialEq, Eq, Hash)]
 pub struct Domain {
     #[serde(with = "http_serde::uri")]
     uri: Uri,
@@ -25,6 +25,10 @@ impl Domain {
                 .build()
                 .unwrap(),
         }
+    }
+
+    pub fn with_uri(uri: Uri) -> Self {
+        Self { uri }
     }
 
     pub fn version(&self) -> crate::http::version::Type {
@@ -43,6 +47,10 @@ impl Domain {
         }
     }
 
+    pub fn authority(&self) -> Option<&Authority> {
+        self.uri.authority()
+    }
+
     pub fn host(&self) -> String {
         self.uri.authority().unwrap().host().to_owned()
     }
@@ -59,23 +67,27 @@ impl Domain {
 impl Resolvable for Domain {
     type Error = anyhow::Error;
 
-    type ResolveFuture<'a> = impl Future<Output = Result<Option<SocketAddr>, Self::Error>>
+    type Address = String;
+
+    type ResolveFuture<'a> = impl Future<Output = Result<Option<Self::Address>, Self::Error>>
     where
         Self: 'a;
 
     fn resolve(&self) -> Self::ResolveFuture<'_> {
-        async { Ok(Some(self.get_addr())) }
+        async {
+            match self.authority() {
+                Some(authority) => Ok(Some(authority.as_str().to_string())),
+                None => {
+                    // or return None
+                    bail!("No authority in this domain!")
+                }
+            }
+        }
     }
 }
 
 impl Display for Domain {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}", self.uri)
-    }
-}
-
-impl ToSocketAddr for Domain {
-    fn get_addr(&self) -> SocketAddr {
-        SocketAddr::from(self.listen_addr(false).parse::<SocketAddr>().unwrap())
     }
 }

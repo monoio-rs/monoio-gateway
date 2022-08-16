@@ -17,16 +17,32 @@ pub struct RoutersConfig<A> {
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RouterConfig<A> {
-    server_name: String,
-    listen_port: u16,
-    rules: Vec<RouterRule<A>>,
+    pub server_name: String,
+    pub listen_port: u16,
+    pub rules: Vec<RouterRule<A>>,
+}
+
+impl<A> RouterConfig<A> {
+    pub fn get_rules(&self) -> &Vec<RouterRule<A>> {
+        &self.rules
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RouterRule<A> {
-    path: String,
-    proxy_pass: A,
+    pub path: String,
+    pub proxy_pass: A,
     // TODO
+}
+
+impl<A> RouterRule<A> {
+    pub fn get_path(&self) -> &String {
+        &self.path
+    }
+
+    pub fn get_proxy_pass(&self) -> &A {
+        &self.proxy_pass
+    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]

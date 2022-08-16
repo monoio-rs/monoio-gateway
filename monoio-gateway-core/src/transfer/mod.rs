@@ -1,3 +1,4 @@
+use log::info;
 use monoio::io::{sink::Sink, stream::Stream, AsyncReadRent, AsyncWriteRent, AsyncWriteRentExt};
 use monoio_http::{
     common::IntoParts,
@@ -37,17 +38,17 @@ where
     loop {
         match local.next().await {
             Some(Ok(data)) => {
-                println!("sending data");
+                info!("sending data");
                 let _ = local.fill_payload().await;
                 let _ = remote.send(data).await;
                 let _ = remote.flush().await;
-                println!("sent data");
+                info!("data sent");
             }
             Some(Err(decode_error)) => {
                 eprintln!("{}", decode_error);
             }
             None => {
-                println!("None");
+                info!("reached EOF");
                 break;
             }
         }

@@ -5,6 +5,12 @@
       "listen_port": 5000,
       "rules": [
         {
+          "path": "/",
+          "proxy_pass": {
+            "uri": "http://127.0.0.1:8000"
+          }
+        },
+        {
           "path": "/test1",
           "proxy_pass": {
             "uri": "http://127.0.0.1:8000"

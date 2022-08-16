@@ -2,7 +2,7 @@ use std::{net::SocketAddr, str::FromStr};
 
 use monoio::net::ListenerConfig;
 use monoio_gateway::{
-    gateway::{GatewayAgent, GatewayAgentable, TcpInBoundConfig, TcpOutBoundConfig},
+    gateway::{GatewayAgentable, TcpInBoundConfig, TcpOutBoundConfig},
     proxy::tcp::TcpProxyConfig,
 };
 use monoio_gateway_core::{
@@ -16,7 +16,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let inbound_addr = SocketAddr::from_str("127.0.0.1:5000")?;
     let inbound_addr2 = SocketAddr::from_str("127.0.0.1:5001")?;
     let outbound_addr = SocketAddr::from_str("127.0.0.1:8000")?;
-    let config = Config::new()
+    let _config = Config::new()
         .push(TcpProxyConfig {
             inbound: TcpInBoundConfig::new(ServerConfig::new(TcpAddress::new(inbound_addr))),
             outbound: TcpOutBoundConfig::new(ServerConfig::new(TcpAddress::new(
@@ -31,7 +31,7 @@ async fn main() -> Result<(), anyhow::Error> {
             ))),
             listener: ListenerConfig::default(),
         });
-    let mut agent = GatewayAgent::<TcpAddress>::build(&config);
-    agent.serve().await?;
+    // let mut agent = GatewayAgent::<TcpAddress>::build(&config);
+    // agent.serve().await?;
     Ok(())
 }
