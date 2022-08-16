@@ -163,7 +163,7 @@ fn longest_match<'cx>(
     for route in routes.iter() {
         let route_path = route.get_path();
         let route_path_len = route_path.len();
-        if route_path.starts_with(req_path) && route_path_len > route_len {
+        if req_path.starts_with(route_path) && route_path_len > route_len {
             target_route = Some(route);
             route_len = route_path_len;
         }
