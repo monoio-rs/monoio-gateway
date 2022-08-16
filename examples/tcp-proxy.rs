@@ -1,37 +1,29 @@
-use std::{net::SocketAddr, str::FromStr};
-
-use monoio::net::ListenerConfig;
 use monoio_gateway::{
-    gateway::{GatewayAgentable, TcpInBoundConfig, TcpOutBoundConfig},
-    proxy::tcp::TcpProxyConfig,
+    gateway::GatewayAgentable,
+    init_env,
+    proxy::{tcp::TcpProxy, Proxy},
 };
 use monoio_gateway_core::{
-    config::{Config, ServerConfig},
     dns::tcp::TcpAddress,
+    http::router::{RouterConfig, RouterRule},
 };
 
 /// a simple tcp proxy
 #[monoio::main(timer_enabled = true)]
 async fn main() -> Result<(), anyhow::Error> {
-    let inbound_addr = SocketAddr::from_str("127.0.0.1:5000")?;
-    let inbound_addr2 = SocketAddr::from_str("127.0.0.1:5001")?;
-    let outbound_addr = SocketAddr::from_str("127.0.0.1:8000")?;
-    let _config = Config::new()
-        .push(TcpProxyConfig {
-            inbound: TcpInBoundConfig::new(ServerConfig::new(TcpAddress::new(inbound_addr))),
-            outbound: TcpOutBoundConfig::new(ServerConfig::new(TcpAddress::new(
-                outbound_addr.clone(),
-            ))),
-            listener: ListenerConfig::default(),
-        })
-        .push(TcpProxyConfig {
-            inbound: TcpInBoundConfig::new(ServerConfig::new(TcpAddress::new(inbound_addr2))),
-            outbound: TcpOutBoundConfig::new(ServerConfig::new(TcpAddress::new(
-                outbound_addr.clone(),
-            ))),
-            listener: ListenerConfig::default(),
-        });
-    // let mut agent = GatewayAgent::<TcpAddress>::build(&config);
-    // agent.serve().await?;
+    init_env();
+    let target = TcpAddress::new("127.0.0.1:8000".parse().expect("tcp address is not valid"));
+    let listen_port = 5000;
+    let server_name = "".to_string();
+    let router_config = vec![RouterConfig {
+        server_name: server_name.to_owned(),
+        listen_port,
+        rules: vec![RouterRule {
+            path: "".to_string(),
+            proxy_pass: target.clone(),
+        }],
+    }];
+    let mut tcp_proxy = TcpProxy::build_with_config(&router_config);
+    tcp_proxy.io_loop().await?;
     Ok(())
 }

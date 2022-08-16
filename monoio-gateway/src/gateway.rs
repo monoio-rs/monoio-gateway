@@ -1,14 +1,10 @@
-use std::{collections::HashMap, future::Future};
+use std::future::Future;
 
 use monoio_gateway_core::{
-    config::{Config, InBoundConfig, OutBoundConfig, ProxyConfig},
+    config::{Config, InBoundConfig, OutBoundConfig},
     dns::{http::Domain, tcp::TcpAddress},
     error::GError,
     http::router::RouterConfig,
-    service::{Service, ServiceBuilder},
-};
-use monoio_gateway_services::layer::{
-    accept::TcpAcceptLayer, listen::TcpListenLayer, router::RouterLayer, transfer::TransferService,
 };
 
 use crate::proxy::{h1::HttpProxy, tcp::TcpProxy, Proxy};
@@ -22,20 +18,20 @@ pub trait Gatewayable<Addr> {
     where
         Self: 'cx;
 
-    fn new(config: ProxyConfig<Addr>) -> Self;
+    fn new(config: Vec<RouterConfig<Addr>>) -> Self;
 
     fn serve(&self) -> Self::GatewayFuture<'_>;
 }
 
 #[derive(Clone)]
 pub struct Gateway<Addr> {
-    config: ProxyConfig<Addr>,
+    config: Vec<RouterConfig<Addr>>,
 }
 
 impl Gatewayable<TcpAddress> for Gateway<TcpAddress> {
     type GatewayFuture<'cx> = impl Future<Output = Result<(), GError>> where Self: 'cx;
 
-    fn new(config: ProxyConfig<TcpAddress>) -> Self {
+    fn new(config: Vec<RouterConfig<TcpAddress>>) -> Self {
         Self { config }
     }
 
@@ -50,7 +46,7 @@ impl Gatewayable<TcpAddress> for Gateway<TcpAddress> {
 impl Gatewayable<Domain> for Gateway<Domain> {
     type GatewayFuture<'cx> = impl Future<Output = Result<(), GError>> where Self: 'cx;
 
-    fn new(config: ProxyConfig<Domain>) -> Self {
+    fn new(config: Vec<RouterConfig<Domain>>) -> Self {
         Self { config }
     }
 
@@ -126,28 +122,8 @@ impl GatewayAgentable for GatewayAgent<Domain> {
 
     fn serve(&mut self) -> Self::Future<'_> {
         async {
-            let mut route_map = HashMap::<String, RouterConfig<Domain>>::new();
-            for route in self.config.iter() {
-                route_map.insert(route.server_name.to_owned(), route.to_owned());
-            }
-            let mut svc = ServiceBuilder::default()
-                .layer(TcpListenLayer::new_allow_lan(
-                    self.get_listen_port().expect("listen port cannot be null"),
-                ))
-                .layer(TcpAcceptLayer::default())
-                .layer(RouterLayer::new(route_map))
-                .service(TransferService::default());
-            svc.call(()).await?;
-            Ok(())
-        }
-    }
-}
-
-impl<A> GatewayAgent<A> {
-    pub fn get_listen_port(&self) -> Option<u16> {
-        match self.config.first() {
-            Some(port) => Some(port.listen_port),
-            None => None,
+            let mut proxy = HttpProxy::build_with_config(&self.config);
+            proxy.io_loop().await
         }
     }
 }

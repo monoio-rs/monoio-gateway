@@ -1,4 +1,9 @@
-use std::{fmt::Display, future::Future, net::SocketAddr};
+use std::{
+    fmt::Display,
+    future::Future,
+    net::{SocketAddr, ToSocketAddrs},
+    option,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -31,5 +36,13 @@ impl Resolvable for TcpAddress {
 impl Display for TcpAddress {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}", self.inner)
+    }
+}
+
+impl ToSocketAddrs for TcpAddress {
+    type Iter = option::IntoIter<SocketAddr>;
+
+    fn to_socket_addrs(&self) -> std::io::Result<Self::Iter> {
+        self.inner.to_socket_addrs()
     }
 }

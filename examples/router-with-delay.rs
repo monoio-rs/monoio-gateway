@@ -1,8 +1,4 @@
-
-use monoio_gateway::{
-    gateway::{GatewayAgentable},
-    init_env,
-};
+use monoio_gateway::{gateway::GatewayAgentable, init_env};
 use monoio_gateway_core::{
     dns::http::Domain,
     error::GError,
@@ -11,7 +7,7 @@ use monoio_gateway_core::{
 };
 use monoio_gateway_services::layer::{
     accept::TcpAcceptLayer, delay::DelayLayer, listen::TcpListenLayer, router::RouterLayer,
-    transfer::TransferService,
+    transfer::HttpTransferService,
 };
 use std::{collections::HashMap, time::Duration};
 
@@ -39,7 +35,7 @@ pub async fn main() -> Result<(), GError> {
         .layer(TcpAcceptLayer::default())
         .layer(DelayLayer::new(Duration::from_secs(1)))
         .layer(RouterLayer::new(route_map))
-        .service(TransferService::default());
+        .service(HttpTransferService::default());
     svc.call(()).await?;
     Ok(())
 }
