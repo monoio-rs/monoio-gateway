@@ -12,7 +12,11 @@ monoio-http = {path = "../../monoio-http/monoio-http"}
 thiserror = "1"
 anyhow = "1"
 http = "0.2"
+http-serde = "1"
 
 serde = "1"
 serde_derive = "1"
 serde_json = "1"
+
+log = "0.4"
+

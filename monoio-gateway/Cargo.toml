@@ -22,7 +22,10 @@ anyhow = "1"
 # logger
 env_logger = "0.9"
 log = "0.4"
+clap = {version = "3", features = ['derive']}
 
 tower = {version = "0.4", features = ["full"]}
 
+serde = "1"
 serde_json = "1"
+serde_derive = "1"

@@ -1,17 +1,20 @@
 {
-  "proxy": [
+  "configs": [
     {
-      "server_name": "python simple http server",
-      "domain": "python.server",
-      "listen": 5000,
-      "proxy": [
+      "server_name": "python.server",
+      "listen_port": 5000,
+      "rules": [
         {
           "path": "/test1",
-          "pass": "http://127.0.0.1:8000"
+          "proxy_pass": {
+            "uri": "http://127.0.0.1:8000"
+          }
         },
         {
           "path": "/test2",
-          "pass": "http://127.0.0.1:8001"
+          "proxy_pass": {
+            "uri": "http://127.0.0.1:8001"
+          }
         }
       ]
     }

@@ -1,8 +1,10 @@
 use std::{fmt::Display, future::Future, net::SocketAddr};
 
+use serde::{Deserialize, Serialize};
+
 use super::{Resolvable, ToSocketAddr};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Deserialize, Serialize)]
 pub struct TcpAddress {
     inner: SocketAddr,
 }

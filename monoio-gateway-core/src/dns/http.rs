@@ -5,11 +5,13 @@ use std::{
 };
 
 use http::Uri;
+use serde::{Deserialize, Serialize};
 
 use super::{Resolvable, ToSocketAddr};
 
-#[derive(Clone)]
+#[derive(Clone, Deserialize, Serialize)]
 pub struct Domain {
+    #[serde(with = "http_serde::uri")]
     uri: Uri,
 }
 
