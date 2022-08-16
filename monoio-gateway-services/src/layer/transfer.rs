@@ -5,11 +5,7 @@ use monoio::net::{
     tcp::{TcpOwnedReadHalf, TcpOwnedWriteHalf},
     TcpStream,
 };
-use monoio_gateway_core::{
-    error::GError,
-    service::Service,
-    transfer::{copy_stream_sink},
-};
+use monoio_gateway_core::{error::GError, service::Service, transfer::copy_stream_sink};
 use monoio_http::h1::codec::{
     decoder::{RequestDecoder, ResponseDecoder},
     encoder::GenericEncoder,

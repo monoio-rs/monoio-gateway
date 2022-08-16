@@ -2,7 +2,7 @@ use std::{
     fmt::{Debug, Display},
     future::Future,
     hash::Hash,
-    net::{ToSocketAddrs},
+    net::ToSocketAddrs,
 };
 
 pub mod http;

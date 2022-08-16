@@ -57,10 +57,13 @@ where
     fn build_with_config(config: RoutersConfig<A>) -> Self {
         let mut rule_map = RouterMap::new();
         for conf in config.configs {
+            info!("building {}", conf.server_name);
+            if !rule_map.contains_key(&conf.listen_port) {
+                rule_map.insert(conf.listen_port, vec![]);
+            }
             rule_map
                 .entry(conf.listen_port)
-                .and_modify(|conf_vec| conf_vec.push(conf.clone()))
-                .or_insert(vec![]);
+                .and_modify(|conf_vec| conf_vec.push(conf.clone()));
         }
         Self { map: rule_map }
     }
@@ -85,6 +88,7 @@ where
                 info!("read {} bytes from config", len);
                 let raw = &buf[..len];
                 let router_config = serde_json::from_slice::<RoutersConfig<A>>(raw)?;
+                info!("gateway count: {}", router_config.configs.len());
                 Ok(router_config)
             }
             Err(err) => bail!("Error open file: {}", err),

@@ -1,4 +1,4 @@
-use std::{future::Future};
+use std::future::Future;
 
 use anyhow::bail;
 use log::info;

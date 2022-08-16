@@ -3,6 +3,7 @@
 
 use anyhow::{bail, Result};
 use clap::Parser;
+use log::info;
 use monoio_gateway::{
     gateway::{GatewayAgent, GatewayAgentable},
     init_env,
@@ -40,8 +41,10 @@ async fn main() -> Result<()> {
     let router = Router::build_with_config(configs);
     // start service
     let m = router.param_ref();
+    info!("starting {} services", m.len());
     let mut handles = vec![];
-    for (_, v) in m {
+    for (port, v) in m {
+        info!("port: {}, gateway payload count: {}", port, v.len());
         let config_vec = v.clone();
         handles.push(monoio::spawn(async move {
             let mut agent = GatewayAgent::<Domain>::build(&(config_vec.to_owned()));
@@ -51,7 +54,7 @@ async fn main() -> Result<()> {
     for handle in handles {
         match handle.await {
             Err(err) => {
-                eprintln!("{}", err);
+                log::error!("{}", err);
             }
             _ => {}
         }
@@ -66,6 +69,9 @@ where
     let path = config.config.to_owned();
     match RouterConfig::<A>::read_from_file(path).await {
         Ok(confs) => Ok(confs),
-        Err(err) => bail!("{}", err),
+        Err(err) => {
+            log::error!("{}", err);
+            bail!("{}", err);
+        }
     }
 }

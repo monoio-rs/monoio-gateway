@@ -1,10 +1,14 @@
-use std::{future::Future};
+use std::{collections::HashMap, future::Future};
 
 use monoio_gateway_core::{
     config::{Config, InBoundConfig, OutBoundConfig, ProxyConfig},
     dns::{http::Domain, tcp::TcpAddress},
     error::GError,
     http::router::RouterConfig,
+    service::{Service, ServiceBuilder},
+};
+use monoio_gateway_services::layer::{
+    accept::TcpAcceptLayer, listen::TcpListenLayer, router::RouterLayer, transfer::TransferService,
 };
 
 use crate::proxy::{h1::HttpProxy, tcp::TcpProxy, Proxy};
@@ -60,7 +64,7 @@ impl Gatewayable<Domain> for Gateway<Domain> {
 
 pub trait GatewayAgentable {
     type Config;
-    type Future<'cx>: Future<Output = Result<(), anyhow::Error>>
+    type Future<'cx>: Future<Output = Result<(), GError>>
     where
         Self: 'cx;
 
@@ -106,23 +110,46 @@ impl GatewayAgentable for GatewayAgent<TcpAddress> {
 impl GatewayAgentable for GatewayAgent<Domain> {
     type Config = Vec<RouterConfig<Domain>>;
 
-    type Future<'cx> = impl Future<Output = Result<(), anyhow::Error>>
+    type Future<'cx> = impl Future<Output = Result<(), GError>>
     where
         Self: 'cx;
 
     fn build(config: &Self::Config) -> Self {
+        assert!(
+            !config.is_empty(),
+            "config cannot be empty during building Gateway"
+        );
         GatewayAgent {
             config: config.clone(),
         }
     }
 
     fn serve(&mut self) -> Self::Future<'_> {
-        async { Ok(()) }
+        async {
+            let mut route_map = HashMap::<String, RouterConfig<Domain>>::new();
+            for route in self.config.iter() {
+                route_map.insert(route.server_name.to_owned(), route.to_owned());
+            }
+            let mut svc = ServiceBuilder::default()
+                .layer(TcpListenLayer::new_allow_lan(
+                    self.get_listen_port().expect("listen port cannot be null"),
+                ))
+                .layer(TcpAcceptLayer::default())
+                .layer(RouterLayer::new(route_map))
+                .service(TransferService::default());
+            svc.call(()).await?;
+            Ok(())
+        }
     }
 }
 
-impl GatewayAgent<Domain> {
-    pub fn build_svc(&self) {}
+impl<A> GatewayAgent<A> {
+    pub fn get_listen_port(&self) -> Option<u16> {
+        match self.config.first() {
+            Some(port) => Some(port.listen_port),
+            None => None,
+        }
+    }
 }
 
 pub type TcpInBoundConfig = InBoundConfig<TcpAddress>;

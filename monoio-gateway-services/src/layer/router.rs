@@ -2,7 +2,7 @@ use std::{collections::HashMap, future::Future};
 
 use anyhow::bail;
 
-use log::{debug};
+use log::debug;
 use monoio::{
     io::{sink::SinkExt, stream::Stream},
     net::TcpStream,

@@ -1,7 +1,7 @@
 {
   "configs": [
     {
-      "server_name": "python.server",
+      "server_name": "python.server:5000",
       "listen_port": 5000,
       "rules": [
         {
