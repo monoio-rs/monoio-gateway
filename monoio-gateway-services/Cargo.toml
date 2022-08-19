@@ -9,6 +9,8 @@ edition = "2021"
 monoio = {path = "../../monoio/monoio"}
 monoio-gateway-core = {path = "../monoio-gateway-core"}
 monoio-http = {path = "../../monoio-http/monoio-http"}
+monoio-rustls = {path = "../../monoio-tls/monoio-rustls"}
+rustls = {version = "0.20", features = ["tls12"]}
 
 anyhow = "1"
 log = "0.4"

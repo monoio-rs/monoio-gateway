@@ -30,6 +30,13 @@ pub type HttpTransferParams = (
     ResponseDecoder<TcpOwnedReadHalf>,
 );
 
+pub type HttpsTransferParams = (
+    GenericEncoder<monoio_rustls::ServerTlsStreamWriteHalf<TcpStream>>,
+    RequestDecoder<monoio_rustls::ServerTlsStreamReadHalf<TcpStream>>,
+    GenericEncoder<monoio_rustls::ClientTlsStreamWriteHalf<TcpStream>>,
+    ResponseDecoder<monoio_rustls::ClientTlsStreamReadHalf<TcpStream>>,
+);
+
 impl Service<TcpTransferParams> for TcpTransferService {
     type Response = ();
 
@@ -65,6 +72,29 @@ impl Service<HttpTransferParams> for HttpTransferService {
         Self: 'cx;
 
     fn call(&mut self, req: HttpTransferParams) -> Self::Future<'_> {
+        async {
+            info!("transfer data");
+            let (mut local_read, mut local_write) = (req.1, req.0);
+            let (mut remote_read, mut remote_write) = (req.3, req.2);
+            let _ = monoio::join!(
+                copy_stream_sink(&mut local_read, &mut remote_write),
+                copy_stream_sink(&mut remote_read, &mut local_write)
+            );
+            Ok(())
+        }
+    }
+}
+
+impl Service<HttpsTransferParams> for HttpTransferService {
+    type Response = ();
+
+    type Error = GError;
+
+    type Future<'cx> = impl Future<Output = Result<Self::Response, Self::Error>>
+    where
+        Self: 'cx;
+
+    fn call(&mut self, req: HttpsTransferParams) -> Self::Future<'_> {
         async {
             info!("transfer data");
             let (mut local_read, mut local_write) = (req.1, req.0);

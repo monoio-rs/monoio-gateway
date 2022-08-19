@@ -5,6 +5,7 @@ pub mod detect;
 pub mod listen;
 pub mod router;
 pub mod timeout;
+pub mod tls;
 pub mod transfer;
 /// monoio service layer
 
