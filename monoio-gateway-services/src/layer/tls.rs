@@ -1,13 +1,14 @@
-use std::{future::Future, net::SocketAddr};
+use std::{fmt::Debug, fs::File, future::Future, io::BufReader, net::SocketAddr, path::Path};
 
 use anyhow::bail;
+use log::info;
 use monoio::net::TcpStream;
 use monoio_gateway_core::{
     error::GError,
     service::{Layer, Service},
 };
-use monoio_rustls::TlsAcceptor;
-use rustls::{Certificate, PrivateKey, ServerConfig};
+use monoio_rustls::{TlsAcceptor, TlsConnector};
+use rustls::{Certificate, OwnedTrustAnchor, PrivateKey, RootCertStore, ServerConfig};
 
 use super::accept::TcpAccept;
 
@@ -47,6 +48,7 @@ where
     fn call(&mut self, accept: TcpAccept) -> Self::Future<'_> {
         let tls_config = self.config.clone();
         async move {
+            info!("begin handshake");
             let tls_acceptor = TlsAcceptor::from(tls_config);
             match tls_acceptor.accept(accept.0).await {
                 Ok(stream) => match self.inner.call((stream, accept.1)).await {
@@ -74,11 +76,11 @@ impl TlsLayer {
         crt_cert: String,
         private_key: String,
     ) -> Result<Self, GError> {
-        let ca = std::fs::read(ca_cert)?;
+        let ca = read_pem_file(ca_cert)?;
         let ca_cert = Certificate(ca);
-        let crt = std::fs::read(crt_cert)?;
+        let crt = read_pem_file(crt_cert)?;
         let crt_cert = Certificate(crt);
-        let private = std::fs::read(private_key)?;
+        let private = read_private_key(private_key)?;
         let private_cert = PrivateKey(private);
 
         let config = ServerConfig::builder()
@@ -108,4 +110,40 @@ impl<S> Layer<S> for TlsLayer {
             inner: service,
         }
     }
+}
+
+pub fn read_pem_file(path: impl AsRef<Path> + Debug + Clone) -> Result<Vec<u8>, GError> {
+    let f = File::open(path.clone())?;
+    let mut reader = BufReader::new(f);
+    let mut pems = rustls_pemfile::certs(&mut reader)?;
+    match pems.pop() {
+        Some(pem) => Ok(pem),
+        None => bail!("pem file validate failed: {:?}", path),
+    }
+}
+
+pub fn read_private_key(path: impl AsRef<Path> + Debug + Clone) -> Result<Vec<u8>, GError> {
+    let f = File::open(path.clone())?;
+    let mut reader = BufReader::new(f);
+    let mut pems = rustls_pemfile::rsa_private_keys(&mut reader)?;
+    match pems.pop() {
+        Some(pem) => Ok(pem),
+        None => bail!("pem file validate failed: {:?}", path),
+    }
+}
+
+pub fn get_default_tls_connector() -> TlsConnector {
+    let mut root_store = RootCertStore::empty();
+    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+        OwnedTrustAnchor::from_subject_spki_name_constraints(
+            ta.subject,
+            ta.spki,
+            ta.name_constraints,
+        )
+    }));
+    let config = rustls::ClientConfig::builder()
+        .with_safe_defaults()
+        .with_root_certificates(root_store)
+        .with_no_client_auth();
+    TlsConnector::from(config)
 }

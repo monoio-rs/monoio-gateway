@@ -2,10 +2,9 @@ use std::{collections::HashMap, future::Future};
 
 use anyhow::bail;
 
-use log::debug;
+use log::{debug, info};
 use monoio::{
-    io::{sink::SinkExt, stream::Stream},
-    net::TcpStream,
+    io::{stream::Stream},
 };
 use monoio_gateway_core::{
     dns::{http::Domain, Resolvable},
@@ -17,17 +16,17 @@ use monoio_http::{
     common::request::Request,
     h1::{
         codec::{
-            decoder::{RequestDecoder, ResponseDecoder},
+            decoder::{RequestDecoder},
             encoder::GenericEncoder,
         },
         payload::Payload,
     },
 };
 
+use crate::layer::transfer::TransferParamsType;
+
 use super::{
-    accept::TcpAccept,
-    tls::TlsAccept,
-    transfer::{HttpTransferParams, HttpsTransferParams},
+    accept::TcpAccept, endpoint::EndpointRequestParams, tls::TlsAccept,
 };
 #[derive(Clone)]
 pub struct RouterService<T, A> {
@@ -37,7 +36,7 @@ pub struct RouterService<T, A> {
 
 impl<T> Service<TlsAccept> for RouterService<T, Domain>
 where
-    T: Service<HttpsTransferParams>,
+    T: Service<EndpointRequestParams<Domain>>,
 {
     type Response = Option<T::Response>;
 
@@ -50,7 +49,7 @@ where
     fn call(&mut self, req: TlsAccept) -> Self::Future<'_> {
         async {
             let (local_read, local_write) = req.0.split();
-            let _local_encoder = GenericEncoder::new(local_write);
+            let local_encoder = GenericEncoder::new(local_write);
             let mut local_decoder = RequestDecoder::new(local_read);
             match local_decoder.next().await {
                 Some(Ok(req)) => {
@@ -65,26 +64,34 @@ where
                                     let m = longest_match(req.uri().path(), target.get_rules());
                                     if let Some(rule) = m {
                                         let proxy_pass = rule.get_proxy_pass();
-                                        match proxy_pass.resolve().await? {
-                                            Some(_endpoint) => {
-                                                // connect endpoint
-                                                todo!()
-                                            }
-                                            _ => {}
+                                        match self
+                                            .inner
+                                            .call(EndpointRequestParams::new(
+                                                TransferParamsType::ServerTls(
+                                                    local_encoder,
+                                                    local_decoder,
+                                                ),
+                                                proxy_pass.to_owned(),
+                                                Some(req),
+                                            ))
+                                            .await
+                                        {
+                                            Ok(resp) => return Ok(Some(resp)),
+                                            Err(err) => bail!("{}", err),
                                         }
                                     } else {
                                         // no match router rule
-                                        debug!("no matching router rule, {}", domain);
+                                        info!("no matching router rule, {}", domain);
                                     }
                                 }
                                 None => {
-                                    debug!("no matching endpoint, ignoring {}", domain);
+                                    info!("no matching endpoint, ignoring {}", domain);
                                 }
                             }
                         }
                         None => {
                             // no host, ignore!
-                            debug!("request has no host, uri: {}", req.uri());
+                            info!("request has no host, uri: {}", req.uri());
                         }
                     }
                 }
@@ -102,7 +109,7 @@ where
 
 impl<T> Service<TcpAccept> for RouterService<T, Domain>
 where
-    T: Service<HttpTransferParams>,
+    T: Service<EndpointRequestParams<Domain>>,
 {
     type Response = Option<T::Response>;
 
@@ -131,34 +138,23 @@ where
                                     let m = longest_match(req.uri().path(), target.get_rules());
                                     if let Some(rule) = m {
                                         let proxy_pass = rule.get_proxy_pass();
-                                        match proxy_pass.resolve().await? {
-                                            Some(endpoint) => {
-                                                // connect endpoint
-                                                let remote = TcpStream::connect(endpoint).await?;
-                                                let (remote_read, remote_write) =
-                                                    remote.into_split();
-                                                let mut remote_encoder =
-                                                    GenericEncoder::new(remote_write);
-                                                let remote_decoder =
-                                                    ResponseDecoder::new(remote_read);
-                                                remote_encoder.send_and_flush(req).await?;
-                                                match self
-                                                    .inner
-                                                    .call((
-                                                        local_encoder,
-                                                        local_decoder,
-                                                        remote_encoder,
-                                                        remote_decoder,
-                                                    ))
-                                                    .await
-                                                {
-                                                    Ok(resp) => {
-                                                        return Ok(Some(resp));
-                                                    }
-                                                    Err(_) => bail!("transfer failed"),
-                                                }
+                                        // connect endpoint
+                                        match self
+                                            .inner
+                                            .call(EndpointRequestParams::new(
+                                                TransferParamsType::ServerHttp(
+                                                    local_encoder,
+                                                    local_decoder,
+                                                ),
+                                                proxy_pass.clone(),
+                                                Some(req),
+                                            ))
+                                            .await
+                                        {
+                                            Ok(resp) => {
+                                                return Ok(Some(resp));
                                             }
-                                            _ => {}
+                                            Err(_) => bail!("endpoint communication failed"),
                                         }
                                     } else {
                                         // no match router rule

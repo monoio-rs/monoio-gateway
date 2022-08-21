@@ -7,15 +7,15 @@ use monoio_gateway_core::{
     service::{Service, ServiceBuilder},
 };
 use monoio_gateway_services::layer::{
-    accept::TcpAcceptLayer, listen::TcpListenLayer, router::RouterLayer, tls::TlsLayer,
-    transfer::HttpTransferService,
+    accept::TcpAcceptLayer, endpoint::ConnectEndpointLayer, listen::TcpListenLayer,
+    router::RouterLayer, tls::TlsLayer, transfer::HttpTransferService,
 };
 
 #[monoio::main(timer_enabled = true)]
 async fn main() -> Result<(), anyhow::Error> {
     init_env();
     let domain = Domain::with_uri("http://127.0.0.1:8000".parse()?);
-    let server_name = "python.server:5000".to_string();
+    let server_name = "monoio.rs:5000".to_string();
     let listen_port = 5000;
     let router_config = RouterConfig {
         server_name: server_name.clone(),
@@ -34,13 +34,14 @@ async fn main() -> Result<(), anyhow::Error> {
         .layer(TcpAcceptLayer::default())
         .layer(
             TlsLayer::new_with_cert(
-                String::from("rootCA.key"),
-                String::from("rootCA.crt"),
-                String::from("server.key"),
+                String::from("examples/cert/rootCA.crt"),
+                String::from("examples/cert/server.crt"),
+                String::from("examples/cert/server.key"),
             )
             .unwrap(),
         )
         .layer(RouterLayer::new(route_map))
+        .layer(ConnectEndpointLayer::new())
         .service(HttpTransferService::default());
     svc.call(()).await?;
     Ok(())

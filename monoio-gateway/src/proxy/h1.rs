@@ -11,6 +11,7 @@ use monoio_gateway_core::http::router::RouterConfig;
 use monoio_gateway_core::service::{Service, ServiceBuilder};
 
 use monoio_gateway_services::layer::accept::TcpAcceptLayer;
+use monoio_gateway_services::layer::endpoint::ConnectEndpointLayer;
 use monoio_gateway_services::layer::listen::TcpListenLayer;
 use monoio_gateway_services::layer::router::RouterLayer;
 use monoio_gateway_services::layer::transfer::HttpTransferService;
@@ -39,6 +40,7 @@ impl Proxy for HttpProxy {
                 ))
                 .layer(TcpAcceptLayer::default())
                 .layer(RouterLayer::new(route_map))
+                .layer(ConnectEndpointLayer::new())
                 .service(HttpTransferService::default());
             match svc.call(()).await {
                 Ok(_) => Ok(()),

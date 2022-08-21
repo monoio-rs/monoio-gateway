@@ -6,8 +6,8 @@ use monoio_gateway_core::{
     service::{Service, ServiceBuilder},
 };
 use monoio_gateway_services::layer::{
-    accept::TcpAcceptLayer, delay::DelayLayer, listen::TcpListenLayer, router::RouterLayer,
-    transfer::HttpTransferService,
+    accept::TcpAcceptLayer, delay::DelayLayer, endpoint::ConnectEndpointLayer,
+    listen::TcpListenLayer, router::RouterLayer, transfer::HttpTransferService,
 };
 use std::{collections::HashMap, time::Duration};
 
@@ -35,6 +35,7 @@ pub async fn main() -> Result<(), GError> {
         .layer(TcpAcceptLayer::default())
         .layer(DelayLayer::new(Duration::from_secs(1)))
         .layer(RouterLayer::new(route_map))
+        .layer(ConnectEndpointLayer::new())
         .service(HttpTransferService::default());
     svc.call(()).await?;
     Ok(())

@@ -2,6 +2,7 @@ pub mod accept;
 pub mod auth;
 pub mod delay;
 pub mod detect;
+pub mod endpoint;
 pub mod listen;
 pub mod router;
 pub mod timeout;

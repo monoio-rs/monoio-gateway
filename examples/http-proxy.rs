@@ -7,8 +7,8 @@ use monoio_gateway_core::{
     service::{Service, ServiceBuilder},
 };
 use monoio_gateway_services::layer::{
-    accept::TcpAcceptLayer, listen::TcpListenLayer, router::RouterLayer,
-    transfer::HttpTransferService,
+    accept::TcpAcceptLayer, endpoint::ConnectEndpointLayer, listen::TcpListenLayer,
+    router::RouterLayer, transfer::HttpTransferService,
 };
 
 #[monoio::main(timer_enabled = true)]
@@ -33,6 +33,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .layer(TcpListenLayer::new_allow_lan(listen_port))
         .layer(TcpAcceptLayer::default())
         .layer(RouterLayer::new(route_map))
+        .layer(ConnectEndpointLayer::new())
         .service(HttpTransferService::default());
     svc.call(()).await?;
     Ok(())

@@ -11,6 +11,8 @@ monoio-gateway-core = {path = "../monoio-gateway-core"}
 monoio-http = {path = "../../monoio-http/monoio-http"}
 monoio-rustls = {path = "../../monoio-tls/monoio-rustls"}
 rustls = {version = "0.20", features = ["tls12"]}
+rustls-pemfile = "1"
+webpki-roots = "0.22"
 
 anyhow = "1"
 log = "0.4"
