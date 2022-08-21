@@ -64,9 +64,12 @@ where
 
     fn call(&mut self, req: EndpointRequestParams<Domain>) -> Self::Future<'_> {
         async move {
+            info!("trying to connect to endpoint");
             let resolved = req.endpoint.resolve().await?;
             match resolved {
-                Some(addr) => match TcpStream::connect(addr).await {
+                Some(addr) => {
+                    info!("resolved addr: {}", addr);
+                    match TcpStream::connect(addr).await {
                     Ok(stream) => match req.endpoint.version() {
                         monoio_gateway_core::http::version::Type::HTTP => {
                             info!("establishing http connection to endpoint");
@@ -112,7 +115,8 @@ where
                             }
                         }
                     },
-                    Err(err) => bail!("Error Connect Endpoint: {}", err),
+                    Err(err) => bail!("error connect endpoint: {}", err),
+                }
                 },
                 _ => {}
             }

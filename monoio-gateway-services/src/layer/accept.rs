@@ -38,6 +38,9 @@ where
                         monoio::spawn(async move {
                             // let inner_svc = inner_clone;
                             match inner_clone.call(accept).await {
+                                Err(err) => {
+                                    log::error!("Error: {}", err)
+                                }
                                 _ => {}
                             }
                         });

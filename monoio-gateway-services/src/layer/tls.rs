@@ -132,6 +132,7 @@ pub fn read_private_key(path: impl AsRef<Path> + Debug + Clone) -> Result<Vec<u8
     }
 }
 
+#[inline]
 pub fn get_default_tls_connector() -> TlsConnector {
     let mut root_store = RootCertStore::empty();
     root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
