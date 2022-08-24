@@ -8,6 +8,8 @@ pub mod http;
 pub mod service;
 pub mod transfer;
 pub mod util;
+pub mod balance;
+pub mod discover;
 
 use figlet_rs::FIGfont;
 

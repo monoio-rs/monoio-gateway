@@ -1,6 +1,5 @@
-use monoio_gateway_core::service::SvcList;
 
-use crate::discover::Discover;
+use crate::{discover::Discover, service::SvcList};
 
 // /// Load Balancer
 pub struct Balance<D, S>

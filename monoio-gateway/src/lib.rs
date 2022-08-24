@@ -1,8 +1,6 @@
 #![feature(generic_associated_types)]
 #![feature(type_alias_impl_trait)]
 
-pub mod balance;
-pub mod discover;
 pub mod gateway;
 pub mod proxy;
 

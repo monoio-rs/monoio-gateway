@@ -2,6 +2,7 @@ use std::future::Future;
 
 pub mod router;
 pub mod version;
+pub mod detect;
 
 pub trait Detect<I> {
     type Protocol;

@@ -17,8 +17,6 @@ use monoio_gateway_core::{
 use monoio_http::ParamRef;
 use serde::de::DeserializeOwned;
 
-pub mod balance;
-pub mod discover;
 pub mod gateway;
 pub mod proxy;
 

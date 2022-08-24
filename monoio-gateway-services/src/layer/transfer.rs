@@ -110,7 +110,7 @@ impl Service<TransferParams> for HttpTransferService {
                 TransferParamsType::ServerTls(mut lw, mut lr) => match req.remote {
                     TransferParamsType::ClientTls(mut rw, mut rr) => {
                         if let Some(request) = req.local_req {
-                            rw.send_and_flush(request).await;
+                            rw.send_and_flush(request).await?;
                         }
                         let _ = monoio::join!(
                             copy_stream_sink(&mut lr, &mut rw),
@@ -119,7 +119,7 @@ impl Service<TransferParams> for HttpTransferService {
                     }
                     TransferParamsType::ClientHttp(mut rw, mut rr) => {
                         if let Some(request) = req.local_req {
-                            rw.send_and_flush(request).await;
+                            rw.send_and_flush(request).await?;
                         }
                         let _ = monoio::join!(
                             copy_stream_sink(&mut lr, &mut rw),
@@ -131,7 +131,7 @@ impl Service<TransferParams> for HttpTransferService {
                 TransferParamsType::ServerHttp(mut lw, mut lr) => match req.remote {
                     TransferParamsType::ClientTls(mut rw, mut rr) => {
                         if let Some(request) = req.local_req {
-                            rw.send_and_flush(request).await;
+                            rw.send_and_flush(request).await?;
                         }
                         let _ = monoio::join!(
                             copy_stream_sink(&mut lr, &mut rw),
@@ -140,7 +140,7 @@ impl Service<TransferParams> for HttpTransferService {
                     }
                     TransferParamsType::ClientHttp(mut rw, mut rr) => {
                         if let Some(request) = req.local_req {
-                            rw.send_and_flush(request).await;
+                            rw.send_and_flush(request).await?;
                         }
                         let _ = monoio::join!(
                             copy_stream_sink(&mut lr, &mut rw),
