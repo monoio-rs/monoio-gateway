@@ -51,6 +51,7 @@ impl Domain {
         self.uri.authority()
     }
 
+    #[inline]
     pub fn host(&self) -> String {
         self.uri.authority().unwrap().host().to_owned()
     }

@@ -1,4 +1,4 @@
-use std::{future::Future, hash::Hash};
+use std::future::Future;
 
 use self::change::DiscoverChange;
 
@@ -12,7 +12,9 @@ pub trait Discover {
 
     type Error;
 
-    type DiscoverFuture<'a>: Future<Output = Result<Option<DiscoverChange<Self::Key, Self::Service>>, Self::Error>>
+    type DiscoverFuture<'a>: Future<
+        Output = Result<Option<DiscoverChange<Self::Key, Self::Service>>, Self::Error>,
+    >
     where
         Self: 'a;
 

@@ -1,12 +1,8 @@
-use std::{future::Future};
+use std::future::Future;
 
 use anyhow::bail;
 use log::info;
-use monoio::{
-    net::{
-        TcpStream,
-    },
-};
+use monoio::net::TcpStream;
 use monoio_gateway_core::{
     dns::{http::Domain, Resolvable},
     error::GError,
@@ -14,15 +10,10 @@ use monoio_gateway_core::{
 };
 use monoio_http::{
     common::request::Request,
-    h1::codec::{
-        decoder::{ResponseDecoder},
-        encoder::GenericEncoder,
-    },
+    h1::codec::{decoder::ResponseDecoder, encoder::GenericEncoder},
 };
 
 use rustls::ServerName;
-
-
 
 use super::{
     tls::get_default_tls_connector,
@@ -70,54 +61,57 @@ where
                 Some(addr) => {
                     info!("resolved addr: {}", addr);
                     match TcpStream::connect(addr).await {
-                    Ok(stream) => match req.endpoint.version() {
-                        monoio_gateway_core::http::version::Type::HTTP => {
-                            info!("establishing http connection to endpoint");
-                            let (rr, rw) = stream.into_split();
-                            let (rr_decoder, rw_encoder) =
-                                (ResponseDecoder::new(rr), GenericEncoder::new(rw));
-                            match self
-                                .inner
-                                .call(TransferParams::new(
-                                    req.local,
-                                    TransferParamsType::ClientHttp(rw_encoder, rr_decoder),
-                                    req.local_req,
-                                ))
-                                .await
-                            {
-                                Ok(resp) => return Ok(Some(resp)),
-                                Err(err) => bail!("{}", err),
-                            }
-                        }
-                        monoio_gateway_core::http::version::Type::HTTPS => {
-                            info!("establishing https connection to endpoint");
-                            let tls_connector = get_default_tls_connector();
-                            let server_name = ServerName::try_from(req.endpoint.host().as_ref())?;
-                            match tls_connector.connect(server_name, stream).await {
-                                Ok(endpoint_stream) => {
-                                    let (rr, rw) = endpoint_stream.split();
-                                    let (rr_decoder, rw_encoder) =
-                                        (ResponseDecoder::new(rr), GenericEncoder::new(rw));
-                                    match self
-                                        .inner
-                                        .call(TransferParams::new(
-                                            req.local,
-                                            TransferParamsType::ClientTls(rw_encoder, rr_decoder),
-                                            req.local_req,
-                                        ))
-                                        .await
-                                    {
-                                        Ok(resp) => return Ok(Some(resp)),
-                                        Err(err) => bail!("{}", err),
-                                    };
+                        Ok(stream) => match req.endpoint.version() {
+                            monoio_gateway_core::http::version::Type::HTTP => {
+                                info!("establishing http connection to endpoint");
+                                let (rr, rw) = stream.into_split();
+                                let (rr_decoder, rw_encoder) =
+                                    (ResponseDecoder::new(rr), GenericEncoder::new(rw));
+                                match self
+                                    .inner
+                                    .call(TransferParams::new(
+                                        req.local,
+                                        TransferParamsType::ClientHttp(rw_encoder, rr_decoder),
+                                        req.local_req,
+                                    ))
+                                    .await
+                                {
+                                    Ok(resp) => return Ok(Some(resp)),
+                                    Err(err) => bail!("{}", err),
                                 }
-                                Err(tls_error) => bail!("{}", tls_error),
                             }
-                        }
-                    },
-                    Err(err) => bail!("error connect endpoint: {}", err),
+                            monoio_gateway_core::http::version::Type::HTTPS => {
+                                info!("establishing https connection to endpoint");
+                                let tls_connector = get_default_tls_connector();
+                                let server_name =
+                                    ServerName::try_from(req.endpoint.host().as_ref())?;
+                                match tls_connector.connect(server_name, stream).await {
+                                    Ok(endpoint_stream) => {
+                                        let (rr, rw) = endpoint_stream.split();
+                                        let (rr_decoder, rw_encoder) =
+                                            (ResponseDecoder::new(rr), GenericEncoder::new(rw));
+                                        match self
+                                            .inner
+                                            .call(TransferParams::new(
+                                                req.local,
+                                                TransferParamsType::ClientTls(
+                                                    rw_encoder, rr_decoder,
+                                                ),
+                                                req.local_req,
+                                            ))
+                                            .await
+                                        {
+                                            Ok(resp) => return Ok(Some(resp)),
+                                            Err(err) => bail!("{}", err),
+                                        };
+                                    }
+                                    Err(tls_error) => bail!("{}", tls_error),
+                                }
+                            }
+                        },
+                        Err(err) => bail!("error connect endpoint: {}", err),
+                    }
                 }
-                },
                 _ => {}
             }
             Ok(None)

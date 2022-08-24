@@ -3,9 +3,7 @@ use std::{collections::HashMap, future::Future};
 use anyhow::bail;
 
 use log::{debug, info};
-use monoio::{
-    io::{stream::Stream},
-};
+use monoio::io::stream::Stream;
 use monoio_gateway_core::{
     dns::{http::Domain, Resolvable},
     error::GError,
@@ -15,19 +13,14 @@ use monoio_gateway_core::{
 use monoio_http::{
     common::request::Request,
     h1::{
-        codec::{
-            decoder::{RequestDecoder},
-            encoder::GenericEncoder,
-        },
+        codec::{decoder::RequestDecoder, encoder::GenericEncoder},
         payload::Payload,
     },
 };
 
 use crate::layer::transfer::TransferParamsType;
 
-use super::{
-    accept::TcpAccept, endpoint::EndpointRequestParams, tls::TlsAccept,
-};
+use super::{accept::TcpAccept, endpoint::EndpointRequestParams, tls::TlsAccept};
 #[derive(Clone)]
 pub struct RouterService<T, A> {
     inner: T,

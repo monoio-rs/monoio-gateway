@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 monoio-gateway = {path = '../monoio-gateway'}
-monoio-gateway-core = {path = '../monoio-gateway-core'}
+monoio-gateway-core = {path = '../monoio-gateway-core', features = ['full']}
 monoio-gateway-services = {path = '../monoio-gateway-services'}
 monoio = {path = '../../monoio/monoio'}
 monoio-http = {path = '../../monoio-http/monoio-http'}

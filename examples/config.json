@@ -1,7 +1,7 @@
 {
   "configs": [
     {
-      "server_name": "python.server:5000",
+      "server_name": "test.kingtous.cn",
       "listen_port": 5000,
       "rules": [
         {
@@ -22,19 +22,10 @@
             "uri": "http://127.0.0.1:8001"
           }
         }
-      ]
-    },
-    {
-      "server_name": "",
-      "listen_port": 5001,
-      "rules": [
-        {
-          "path": "",
-          "proxy_pass": {
-            "uri": "127.0.0.1:8000"
-          }
-        }
-      ]
+      ],
+      "tls": {
+        "mail": "kingtous@qq.com"
+      }
     }
   ]
 }

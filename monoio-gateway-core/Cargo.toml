@@ -21,3 +21,11 @@ serde_json = "1"
 log = "0.4"
 
 figlet-rs = "0.1"
+
+acme-lib = "0.8"
+lazy_static = "1"
+
+[features]
+default = []
+acme = []
+full = ['acme']

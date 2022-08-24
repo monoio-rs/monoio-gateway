@@ -1,8 +1,8 @@
 use std::future::Future;
 
+pub mod detect;
 pub mod router;
 pub mod version;
-pub mod detect;
 
 pub trait Detect<I> {
     type Protocol;
