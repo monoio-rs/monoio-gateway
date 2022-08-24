@@ -25,6 +25,7 @@ pub async fn main() -> Result<(), GError> {
             path: "/".to_string(),
             proxy_pass: domain.clone(),
         }],
+        tls: None,
     };
     let mut route_map = HashMap::new();
     route_map.insert(server_name, router_config);

@@ -22,6 +22,7 @@ async fn main() -> Result<(), anyhow::Error> {
             path: "".to_string(),
             proxy_pass: target.clone(),
         }],
+        tls: None,
     }];
     let mut tcp_proxy = TcpProxy::build_with_config(&router_config);
     tcp_proxy.io_loop().await?;

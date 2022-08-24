@@ -1,36 +1,49 @@
-use std::{env::join_paths, future::Future, path::Path};
+use std::{future::Future, path::Path};
 
 use acme_lib::{create_p384_key, persist::FilePersist, Certificate, Directory, DirectoryUrl};
 use anyhow::bail;
 use log::{debug, info};
 
-use crate::{acme::Acmed, dns::http::Domain, error::GError, ACME_DIR};
+use crate::{acme::Acmed, error::GError, ACME_DIR};
 
 use super::Acme;
 
-pub struct LetsEncryptAcme {
-    domain: Domain,
+const LETSENCRYPT: &str = "https://acme-v02.api.letsencrypt.org/directory";
+const LETSENCRYPT_STAGING: &str = "https://acme-staging-v02.api.letsencrypt.org/directory";
+
+pub struct GenericAcme {
+    domain: String,
     validate_delay: u64,
     finalize_delay: u64,
     validate_retry_times: u8,
+
+    request_url: String,
 }
 
-impl LetsEncryptAcme {
-    pub fn new(domain: Domain) -> Self {
+impl GenericAcme {
+    pub fn new(domain: String, request_url: String) -> Self {
         Self {
             domain,
             validate_delay: 5000,
             finalize_delay: 10000,
             validate_retry_times: 5,
+
+            request_url: request_url,
         }
     }
 
+    pub fn new_lets_encrypt(domain: String) -> Self {
+        GenericAcme::new(domain, get_lets_encrypt_url(false).to_owned())
+    }
+
+    pub fn new_lets_encrypt_staging(domain: String) -> Self {
+        GenericAcme::new(domain, get_lets_encrypt_url(true).to_owned())
+    }
+
     async fn write_proof(&self, token: &str, proof: String) -> Result<(), GError> {
-        let path_str = join_paths([
-            Path::new(&ACME_DIR.to_string()),
-            Path::new(&self.domain.host()),
-            Path::new(&format!(".well-known/acme-challenge/{}", token)),
-        ])?;
+        let path_str = Path::new(&ACME_DIR.to_string())
+            .join(Path::new(&self.domain))
+            .join(Path::new(&format!(".well-known/acme-challenge/{}", token)));
         debug!("writing proof to {:?}", path_str);
         // create if not exist
         let path = Path::new(&path_str);
@@ -38,14 +51,14 @@ impl LetsEncryptAcme {
         if !parent.exists() {
             std::fs::create_dir_all(parent.to_owned())?;
         }
-        let out = monoio::fs::File::open(path).await?;
+        let out = monoio::fs::File::create(path).await?;
         let _ = out.write_all_at(proof.into_bytes(), 0).await;
         out.close().await?;
         Ok(())
     }
 }
 
-impl Acme for LetsEncryptAcme {
+impl Acme for GenericAcme {
     type Response = Certificate;
 
     /// Email
@@ -58,19 +71,21 @@ impl Acme for LetsEncryptAcme {
 
     fn acme(&self, acme_request: Self::Email) -> Self::Future<'_> {
         async move {
-            info!("request tls certificate from LetsEncrypt...");
-            let url = DirectoryUrl::LetsEncrypt;
+            let url = DirectoryUrl::Other(&self.request_url);
             let persist = FilePersist::new(self.domain.get_acme_path()?);
             match Directory::from_url(persist, url) {
                 Ok(directory) => {
+                    // create new order
                     let acc = directory.account(&acme_request)?;
-                    let mut order = acc.new_order(&self.domain.host(), &[])?;
+                    let mut order = acc.new_order(&self.domain, &[])?;
+                    debug!("created new order");
+                    // try [curr_times] times
                     let mut curr_times = 0;
                     let ord_csr = loop {
                         if curr_times > self.validate_retry_times {
                             bail!("acme failed after {} requests", self.validate_retry_times);
                         }
-                        info!("try {} times for {}", curr_times, self.domain.host());
+                        info!("try {} times for {}", curr_times, self.domain);
                         if let Some(ord_csr) = order.confirm_validations() {
                             break ord_csr;
                         }
@@ -90,8 +105,19 @@ impl Acme for LetsEncryptAcme {
                     let cert = ord_cert.download_and_save_cert()?;
                     return Ok(Some(cert));
                 }
-                Err(err) => bail!("{}", err),
+                Err(err) => {
+                    debug!("get acme directory failed");
+                    bail!("{}", err)
+                }
             }
         }
+    }
+}
+
+fn get_lets_encrypt_url(staging: bool) -> &'static str {
+    if staging {
+        LETSENCRYPT_STAGING
+    } else {
+        LETSENCRYPT
     }
 }

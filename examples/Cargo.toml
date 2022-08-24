@@ -29,3 +29,7 @@ path = "https-proxy.rs"
 [[example]]
 name = "router-with-delay"
 path = "router-with-delay.rs"
+
+[[example]]
+name = "acme"
+path = "acme.rs"

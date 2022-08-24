@@ -20,6 +20,12 @@ pub struct RouterConfig<A> {
     pub server_name: String,
     pub listen_port: u16,
     pub rules: Vec<RouterRule<A>>,
+    pub tls: Option<TlsConfig>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct TlsConfig {
+    pub mail: String,
 }
 
 impl<A> RouterConfig<A> {

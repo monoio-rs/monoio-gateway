@@ -1,4 +1,6 @@
-use std::{env::join_paths, ffi::OsString, fmt::Display, future::Future, path::Path};
+use std::{ffi::OsString, fmt::Display, fs::create_dir_all, future::Future, path::Path};
+
+use log::info;
 
 use crate::{dns::http::Domain, error::GError, ACME_DIR};
 
@@ -24,16 +26,29 @@ pub trait Acmed {
     fn get_acme_path(&self) -> Result<OsString, GError>;
 }
 
-pub(crate) fn get_acme_path(domain: &Domain) -> Result<OsString, GError> {
-    let path = join_paths([
-        Path::new(&ACME_DIR.to_string()),
-        Path::new(&format!("acme/{}", domain.host())),
-    ])?;
-    Ok(path)
+pub(crate) fn get_acme_path(domain: &str) -> Result<OsString, GError> {
+    let path = Path::new(&ACME_DIR.to_string()).join(Path::new(&format!("acme/{}", domain)));
+    info!("acme path for {}: {:?}", domain, path);
+    // ensure path exists
+    create_dir_all(path.to_owned())?;
+    Ok(path.into())
 }
 
 impl Acmed for Domain {
     fn get_acme_path(&self) -> Result<OsString, GError> {
+        get_acme_path(&self.host())
+    }
+}
+
+/// for convinient convert a server name to acme path
+impl Acmed for &str {
+    fn get_acme_path(&self) -> Result<OsString, GError> {
         get_acme_path(self)
+    }
+}
+
+impl Acmed for String {
+    fn get_acme_path(&self) -> Result<OsString, GError> {
+        get_acme_path(&self)
     }
 }

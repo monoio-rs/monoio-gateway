@@ -3,18 +3,19 @@ use std::future::Future;
 use acme_lib::Certificate;
 use anyhow::bail;
 use monoio_gateway_core::{
-    acme::{lets_encrypt::LetsEncryptAcme, Acme},
-    dns::http::Domain,
+    acme::{lets_encrypt::GenericAcme, Acme},
     error::GError,
     service::Service,
 };
 
-#[derive(Clone)]
-pub struct LetsEncryptService {
-    email: String,
-}
+pub type ServerName = String;
+pub type Email = String;
+pub type AcmeParams = (ServerName, Email);
 
-impl Service<Domain> for LetsEncryptService {
+#[derive(Clone)]
+pub struct LetsEncryptService;
+
+impl Service<AcmeParams> for LetsEncryptService {
     type Response = Option<Certificate>;
 
     type Error = GError;
@@ -23,10 +24,10 @@ impl Service<Domain> for LetsEncryptService {
     where
         Self: 'cx;
 
-    fn call(&mut self, req: Domain) -> Self::Future<'_> {
-        async {
-            let acme = LetsEncryptAcme::new(req);
-            match acme.acme(self.email.clone()).await {
+    fn call(&mut self, req: AcmeParams) -> Self::Future<'_> {
+        async move {
+            let acme = GenericAcme::new_lets_encrypt(req.0);
+            match acme.acme(req.1.clone()).await {
                 Ok(Some(cert)) => {
                     let cert: Certificate = cert;
                     Ok(Some(cert))

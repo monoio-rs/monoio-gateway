@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use monoio_gateway::{gateway::GatewayAgentable, init_env};
 use monoio_gateway_core::{
     dns::http::Domain,
-    http::router::{RouterConfig, RouterRule},
+    http::router::{RouterConfig, RouterRule, TlsConfig},
     service::{Service, ServiceBuilder},
 };
 use monoio_gateway_services::layer::{
@@ -15,8 +15,8 @@ use monoio_gateway_services::layer::{
 async fn main() -> Result<(), anyhow::Error> {
     init_env();
     let domain = Domain::with_uri("http://127.0.0.1:8000".parse()?);
-    let server_name = "monoio.rs:5000".to_string();
-    let listen_port = 5000;
+    let server_name = "monoio-gateway.kingtous.cn".to_string();
+    let listen_port = 443;
     let router_config = RouterConfig {
         server_name: server_name.clone(),
         listen_port,
@@ -24,6 +24,9 @@ async fn main() -> Result<(), anyhow::Error> {
             path: "/".to_string(),
             proxy_pass: domain.clone(),
         }],
+        tls: Some(TlsConfig {
+            mail: "me@kingtous.cn".into(),
+        }),
     };
     let mut route_map = HashMap::new();
     route_map.insert(server_name, router_config);
