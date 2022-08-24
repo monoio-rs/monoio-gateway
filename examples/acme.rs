@@ -1,7 +1,7 @@
 use anyhow::bail;
 use monoio_gateway::init_env;
 use monoio_gateway_core::{
-    acme::{lets_encrypt::GenericAcme, Acme, Acmed},
+    acme::{Acme, Acmed, GenericAcme},
     error::GError,
 };
 

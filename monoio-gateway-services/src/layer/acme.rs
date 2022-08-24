@@ -3,7 +3,7 @@ use std::future::Future;
 use acme_lib::Certificate;
 use anyhow::bail;
 use monoio_gateway_core::{
-    acme::{lets_encrypt::GenericAcme, Acme},
+    acme::{Acme, GenericAcme},
     error::GError,
     service::Service,
 };

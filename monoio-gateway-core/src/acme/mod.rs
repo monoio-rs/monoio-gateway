@@ -4,7 +4,9 @@ use log::info;
 
 use crate::{dns::http::Domain, error::GError, ACME_DIR};
 
-pub mod lets_encrypt;
+mod acme;
+
+pub type GenericAcme = acme::GenericAcme;
 
 /// ACME agent trait
 pub trait Acme {
