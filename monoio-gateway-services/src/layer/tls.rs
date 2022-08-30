@@ -20,7 +20,7 @@ pub type TlsAccept = (monoio_rustls::ServerTlsStream<TcpStream>, SocketAddr);
 pub struct TlsService<T> {
     // enable_client_auth: bool,
     // cert
-    config: ServerConfig,
+    config: Option<ServerConfig>,
     inner: T,
 }
 
@@ -49,7 +49,8 @@ where
         let tls_config = self.config.clone();
         async move {
             info!("begin handshake");
-            let tls_acceptor = TlsAcceptor::from(tls_config);
+            // TODO: integrate acme
+            let tls_acceptor = TlsAcceptor::from(tls_config.unwrap());
             match tls_acceptor.accept(accept.0).await {
                 Ok(stream) => match self.inner.call((stream, accept.1)).await {
                     Ok(resp) => Ok(resp),
@@ -67,7 +68,7 @@ where
 pub struct TlsLayer {
     enable_client_auth: bool,
     // cert
-    config: ServerConfig,
+    config: Option<ServerConfig>,
 }
 
 impl TlsLayer {
@@ -89,7 +90,7 @@ impl TlsLayer {
             .with_single_cert(vec![crt_cert, ca_cert], private_cert)
             .expect("invalid server ssl cert. Please check validity of cert provided.");
         Ok(Self {
-            config,
+            config: Some(config),
             enable_client_auth: false,
         })
     }
@@ -97,6 +98,13 @@ impl TlsLayer {
     pub fn enable_client_auth(mut self, enable: bool) -> Self {
         self.enable_client_auth = enable;
         self
+    }
+
+    pub fn new() -> Self {
+        Self {
+            config: None,
+            enable_client_auth: false,
+        }
     }
 }
 

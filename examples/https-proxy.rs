@@ -26,6 +26,9 @@ async fn main() -> Result<(), anyhow::Error> {
         }],
         tls: Some(TlsConfig {
             mail: "me@kingtous.cn".into(),
+            root_ca: None,
+            server_key: None,
+            private_key: None,
         }),
     };
     let mut route_map = HashMap::new();
@@ -35,14 +38,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut svc = ServiceBuilder::default()
         .layer(TcpListenLayer::new_allow_lan(listen_port))
         .layer(TcpAcceptLayer::default())
-        .layer(
-            TlsLayer::new_with_cert(
-                String::from("examples/cert/rootCA.crt"),
-                String::from("examples/cert/server.crt"),
-                String::from("examples/cert/server.key"),
-            )
-            .unwrap(),
-        )
+        .layer(TlsLayer::new())
         .layer(RouterLayer::new(route_map))
         .layer(ConnectEndpointLayer::new())
         .service(HttpTransferService::default());

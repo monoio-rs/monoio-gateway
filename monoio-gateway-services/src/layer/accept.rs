@@ -15,12 +15,12 @@ pub struct TcpAcceptService<T> {
 
 pub type TcpAccept = (TcpStream, SocketAddr);
 
-impl<T> Service<TcpListener> for TcpAcceptService<T>
+impl<T> Service<&TcpListener> for TcpAcceptService<T>
 where
-    T: Service<TcpAccept> + 'static,
+    T: Service<TcpAccept>,
     T::Error: Display,
 {
-    type Response = Option<T::Response>;
+    type Response = T::Response;
 
     type Error = GError;
 
@@ -28,25 +28,20 @@ where
     where
         Self: 'cx;
 
-    fn call(&mut self, listener: TcpListener) -> Self::Future<'_> {
+    fn call(&mut self, listener: &TcpListener) -> Self::Future<'_> {
         async move {
-            loop {
-                let mut inner_clone = self.inner.to_owned();
-                match listener.accept().await {
-                    Ok(accept) => {
-                        info!("accept a connection");
-                        monoio::spawn(async move {
-                            // let inner_svc = inner_clone;
-                            match inner_clone.call(accept).await {
-                                Err(err) => {
-                                    log::error!("Error: {}", err)
-                                }
-                                _ => {}
-                            }
-                        });
+            let mut inner_clone = self.inner.to_owned();
+            match listener.accept().await {
+                Ok(accept) => {
+                    info!("accept a connection");
+                    match inner_clone.call(accept).await {
+                        Err(err) => {
+                            bail!("Error: {}", err);
+                        }
+                        Ok(resp) => return Ok(resp),
                     }
-                    Err(err) => bail!("{}", err),
                 }
+                Err(err) => bail!("{}", err),
             }
         }
     }

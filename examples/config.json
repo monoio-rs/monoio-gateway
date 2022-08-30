@@ -24,7 +24,10 @@
         }
       ],
       "tls": {
-        "mail": "kingtous@qq.com"
+        "mail": "kingtous@qq.com",
+        "root_ca": "rootCA.crt",
+        "server_key": "server.crt",
+        "private_key": "server.key"
       }
     }
   ]

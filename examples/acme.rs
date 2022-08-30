@@ -3,6 +3,7 @@ use monoio_gateway::init_env;
 use monoio_gateway_core::{
     acme::{Acme, Acmed, GenericAcme},
     error::GError,
+    CERTIFICATE_MAP,
 };
 
 #[monoio::main(timer_enabled = true)]
@@ -13,7 +14,12 @@ async fn main() -> Result<(), GError> {
     let location = server_name.get_acme_path()?;
     let acme = GenericAcme::new_lets_encrypt_staging(server_name.to_string());
     match acme.acme("me@kingtous.cn".to_string()).await {
-        Ok(_cert) => {
+        Ok(cert) => {
+            let cert = cert.unwrap();
+            CERTIFICATE_MAP
+                .lock()
+                .unwrap()
+                .insert(server_name.to_string(), cert);
             println!("get cert, location: {:?}", location);
         }
         Err(err) => {

@@ -13,6 +13,12 @@ pub mod service;
 pub mod transfer;
 pub mod util;
 
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+
+use acme_lib::Certificate;
 use figlet_rs::FIGfont;
 
 #[cfg(feature = "acme")]
@@ -24,6 +30,8 @@ const MAX_CONFIG_SIZE_LIMIT: usize = 8072;
 lazy_static! {
     /// editable acme dir
     pub static ref ACME_DIR: String = String::from("/usr/local/monoio-gateway/acme");
+
+    pub static ref CERTIFICATE_MAP: Arc<Mutex<HashMap<String, Certificate>>> = Arc::new(Mutex::new(HashMap::new()));
 }
 
 pub trait Builder<Config> {

@@ -26,6 +26,9 @@ pub struct RouterConfig<A> {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TlsConfig {
     pub mail: String,
+    pub root_ca: Option<String>,
+    pub server_key: Option<String>,
+    pub private_key: Option<String>,
 }
 
 impl<A> RouterConfig<A> {

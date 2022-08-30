@@ -41,7 +41,7 @@ where
                 info!("sending data");
                 let _ = local.fill_payload().await;
                 let _ = remote.send(data).await;
-                let _ = remote.flush().await;
+                let _ = monoio::io::sink::Sink::flush(remote).await;
                 info!("data sent");
             }
             Some(Err(decode_error)) => {
