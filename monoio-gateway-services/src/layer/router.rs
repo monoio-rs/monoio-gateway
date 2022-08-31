@@ -1,9 +1,9 @@
-use std::{collections::HashMap, future::Future};
+use std::{collections::HashMap, future::Future, rc::Rc};
 
 use anyhow::bail;
 
-use log::{debug, info};
-use monoio::io::stream::Stream;
+use log::{debug};
+use monoio::io::{stream::Stream, AsyncReadRent, AsyncWriteRent, Split, Splitable};
 use monoio_gateway_core::{
     dns::{http::Domain, Resolvable},
     error::GError,
@@ -20,16 +20,20 @@ use monoio_http::{
 
 use crate::layer::transfer::TransferParamsType;
 
-use super::{accept::TcpAccept, endpoint::EndpointRequestParams, tls::TlsAccept};
+use super::{
+    accept::Accept, detect::DetectResult, endpoint::EndpointRequestParams, tls::TlsAccept,
+};
 #[derive(Clone)]
 pub struct RouterService<T, A> {
     inner: T,
-    routes: HashMap<String, RouterConfig<A>>,
+    routes: Rc<HashMap<String, RouterConfig<A>>>,
 }
 
-impl<T> Service<TlsAccept> for RouterService<T, Domain>
+/// Direct use router before Accept
+impl<T, S> Service<Accept<S>> for RouterService<T, Domain>
 where
-    T: Service<EndpointRequestParams<Domain>>,
+    T: Service<EndpointRequestParams<Domain, S>>,
+    S: Split + AsyncWriteRent + AsyncReadRent,
 {
     type Response = Option<T::Response>;
 
@@ -39,80 +43,7 @@ where
     where
         Self: 'cx;
 
-    fn call(&mut self, req: TlsAccept) -> Self::Future<'_> {
-        async {
-            let (local_read, local_write) = req.0.split();
-            let local_encoder = GenericEncoder::new(local_write);
-            let mut local_decoder = RequestDecoder::new(local_read);
-            match local_decoder.next().await {
-                Some(Ok(req)) => {
-                    let req: Request = req;
-                    let host = get_host(&req);
-                    match host {
-                        Some(host) => {
-                            let domain = Domain::with_uri(host.parse()?);
-                            let target = self.match_target(&host.to_owned());
-                            match target {
-                                Some(target) => {
-                                    let m = longest_match(req.uri().path(), target.get_rules());
-                                    if let Some(rule) = m {
-                                        let proxy_pass = rule.get_proxy_pass();
-                                        match self
-                                            .inner
-                                            .call(EndpointRequestParams::new(
-                                                TransferParamsType::ServerTls(
-                                                    local_encoder,
-                                                    local_decoder,
-                                                ),
-                                                proxy_pass.to_owned(),
-                                                Some(req),
-                                            ))
-                                            .await
-                                        {
-                                            Ok(resp) => return Ok(Some(resp)),
-                                            Err(err) => bail!("{}", err),
-                                        }
-                                    } else {
-                                        // no match router rule
-                                        info!("no matching router rule, {}", domain);
-                                    }
-                                }
-                                None => {
-                                    info!("no matching endpoint, ignoring {}", domain);
-                                }
-                            }
-                        }
-                        None => {
-                            // no host, ignore!
-                            info!("request has no host, uri: {}", req.uri());
-                        }
-                    }
-                }
-                Some(Err(err)) => {
-                    // TODO: fallback to tcp
-                    debug!("detect ssl failed, fallback to tcp");
-                    bail!("{}", err)
-                }
-                _ => {}
-            }
-            Ok(None)
-        }
-    }
-}
-
-impl<T> Service<TcpAccept> for RouterService<T, Domain>
-where
-    T: Service<EndpointRequestParams<Domain>>,
-{
-    type Response = Option<T::Response>;
-
-    type Error = GError;
-
-    type Future<'cx> = impl Future<Output = Result<Self::Response, Self::Error>>
-    where
-        Self: 'cx;
-
-    fn call(&mut self, local_stream: TcpAccept) -> Self::Future<'_> {
+    fn call(&mut self, local_stream: Accept<S>) -> Self::Future<'_> {
         async move {
             debug!("find route for {:?}", local_stream.1);
             let (local_read, local_write) = local_stream.0.into_split();
@@ -177,6 +108,165 @@ where
     }
 }
 
+/// Direct use router before Accept
+impl<T, S> Service<TlsAccept<S>> for RouterService<T, Domain>
+where
+    T: Service<EndpointRequestParams<Domain, S>>,
+    S: Split + AsyncWriteRent + AsyncReadRent,
+{
+    type Response = Option<T::Response>;
+
+    type Error = GError;
+
+    type Future<'cx> = impl Future<Output = Result<Self::Response, Self::Error>>
+    where
+        Self: 'cx;
+
+    fn call(&mut self, local_stream: TlsAccept<S>) -> Self::Future<'_> {
+        async move {
+            debug!("find route for {:?}", local_stream.1);
+            let (local_read, local_write) = local_stream.0.split();
+            let local_encoder = GenericEncoder::new(local_write);
+            let mut local_decoder = RequestDecoder::new(local_read);
+            match local_decoder.next().await {
+                Some(Ok(req)) => {
+                    let req: Request = req;
+                    let host = get_host(&req);
+                    match host {
+                        Some(host) => {
+                            let domain = Domain::with_uri(host.parse()?);
+                            let target = self.match_target(&host.to_owned());
+                            match target {
+                                Some(target) => {
+                                    let m = longest_match(req.uri().path(), target.get_rules());
+                                    if let Some(rule) = m {
+                                        let proxy_pass = rule.get_proxy_pass();
+                                        // connect endpoint
+                                        match self
+                                            .inner
+                                            .call(EndpointRequestParams::new(
+                                                TransferParamsType::ServerTls(
+                                                    local_encoder,
+                                                    local_decoder,
+                                                ),
+                                                proxy_pass.clone(),
+                                                Some(req),
+                                            ))
+                                            .await
+                                        {
+                                            Ok(resp) => {
+                                                return Ok(Some(resp));
+                                            }
+                                            Err(_) => bail!("endpoint communication failed"),
+                                        }
+                                    } else {
+                                        // no match router rule
+                                        debug!("no matching router rule, {}", domain);
+                                    }
+                                }
+                                None => {
+                                    debug!("no matching endpoint, ignoring {}", domain);
+                                }
+                            }
+                        }
+                        None => {
+                            // no host, ignore!
+                            debug!("request has no host, uri: {}", req.uri());
+                        }
+                    }
+                }
+                Some(Err(err)) => {
+                    // TODO: fallback to tcp
+                    debug!("detect failed, fallback to tcp: {:?}", local_stream.1);
+                    bail!("{}", err)
+                }
+                _ => {}
+            }
+            Ok(None)
+        }
+    }
+}
+
+/// Support detect result
+impl<T, S> Service<DetectResult<S>> for RouterService<T, Domain>
+where
+    T: Service<EndpointRequestParams<Domain, S>>,
+    S: Split + AsyncReadRent + AsyncWriteRent,
+{
+    type Response = Option<T::Response>;
+
+    type Error = GError;
+
+    type Future<'cx> = impl Future<Output = Result<Self::Response, Self::Error>>
+    where
+        Self: 'cx;
+
+    fn call(&mut self, local_stream: DetectResult<S>) -> Self::Future<'_> {
+        async move {
+            let (ty, stream, _socketaddr) = local_stream;
+            debug!("find route for {:?}", ty);
+            let (local_read, local_write) = stream.into_split();
+            let local_encoder = GenericEncoder::new(local_write);
+            let mut local_decoder = RequestDecoder::new(local_read);
+            match local_decoder.next().await {
+                Some(Ok(req)) => {
+                    let req: Request = req;
+                    let host = get_host(&req);
+                    match host {
+                        Some(host) => {
+                            let domain = Domain::with_uri(host.parse()?);
+                            let target = self.match_target(&host.to_owned());
+                            match target {
+                                Some(target) => {
+                                    let m = longest_match(req.uri().path(), target.get_rules());
+                                    if let Some(rule) = m {
+                                        let proxy_pass = rule.get_proxy_pass();
+                                        // connect endpoint
+                                        match self
+                                            .inner
+                                            .call(EndpointRequestParams::new(
+                                                TransferParamsType::ServerHttp(
+                                                    local_encoder,
+                                                    local_decoder,
+                                                ),
+                                                proxy_pass.clone(),
+                                                Some(req),
+                                            ))
+                                            .await
+                                        {
+                                            Ok(resp) => {
+                                                return Ok(Some(resp));
+                                            }
+                                            Err(_) => bail!("endpoint communication failed"),
+                                        }
+                                    } else {
+                                        // no match router rule
+                                        debug!("no matching router rule, {}", domain);
+                                    }
+                                }
+                                None => {
+                                    debug!("no matching endpoint, ignoring {}", domain);
+                                }
+                            }
+                        }
+                        None => {
+                            // no host, ignore!
+                            debug!("request has no host, uri: {}", req.uri());
+                        }
+                    }
+                }
+                Some(Err(err)) => {
+                    // TODO: fallback to tcp
+                    debug!("detect failed, fallback to tcp");
+                    bail!("{}", err)
+                }
+                _ => {}
+            }
+            Ok(None)
+        }
+    }
+}
+
 impl<T, A> RouterService<T, A>
 where
     A: Resolvable,
@@ -188,11 +278,11 @@ where
 }
 
 pub struct RouterLayer<A> {
-    routes: HashMap<String, RouterConfig<A>>,
+    routes: Rc<HashMap<String, RouterConfig<A>>>,
 }
 
 impl<A> RouterLayer<A> {
-    pub fn new(routes: HashMap<String, RouterConfig<A>>) -> Self {
+    pub fn new(routes: Rc<HashMap<String, RouterConfig<A>>>) -> Self {
         Self { routes }
     }
 }

@@ -1,9 +1,17 @@
 use log::info;
-use monoio::io::{sink::Sink, stream::Stream, AsyncReadRent, AsyncWriteRent, AsyncWriteRentExt};
+use monoio::{
+    io::{
+        sink::Sink, stream::Stream, AsyncReadRent, AsyncWriteRent, AsyncWriteRentExt,
+        PrefixedReadIo,
+    },
+    net::TcpStream,
+};
 use monoio_http::{
     common::IntoParts,
     h1::codec::decoder::{DecodeError, FillPayload},
 };
+
+pub type TcpPrefixedIo = PrefixedReadIo<TcpStream, Vec<u8>>;
 
 pub async fn copy_data<Read: AsyncReadRent, Write: AsyncWriteRent>(
     local: &mut Read,

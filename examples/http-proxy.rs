@@ -1,10 +1,10 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 use monoio_gateway::{gateway::GatewayAgentable, init_env};
 use monoio_gateway_core::{
     dns::http::Domain,
     http::router::{RouterConfig, RouterRule},
-    service::{Service, ServiceBuilder},
+    service::{ServiceBuilder},
 };
 use monoio_gateway_services::layer::{
     accept::TcpAcceptLayer, endpoint::ConnectEndpointLayer, listen::TcpListenLayer,
@@ -29,13 +29,14 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut route_map = HashMap::new();
     route_map.insert(server_name, router_config);
     println!("{:?}", route_map.keys());
+    let router_wrapper = Rc::new(route_map);
 
-    let mut svc = ServiceBuilder::default()
+    let _svc = ServiceBuilder::default()
         .layer(TcpListenLayer::new_allow_lan(listen_port))
         .layer(TcpAcceptLayer::default())
-        .layer(RouterLayer::new(route_map))
+        .layer(RouterLayer::new(router_wrapper.clone()))
         .layer(ConnectEndpointLayer::new())
         .service(HttpTransferService::default());
-    svc.call(()).await?;
+    // svc.call(()).await?;
     Ok(())
 }

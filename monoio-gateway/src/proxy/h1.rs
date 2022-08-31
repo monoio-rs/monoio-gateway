@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::future::Future;
+use std::rc::Rc;
 
-use anyhow::bail;
 
-use log::info;
+
+
+
 use monoio::net::{ListenerConfig, TcpListener};
 use monoio_gateway_core::config::ProxyConfig;
 use monoio_gateway_core::dns::http::Domain;
@@ -12,11 +14,12 @@ use monoio_gateway_core::error::GError;
 use monoio_gateway_core::http::router::RouterConfig;
 use monoio_gateway_core::service::{Service, ServiceBuilder};
 
-use monoio_gateway_services::layer::accept::{TcpAccept, TcpAcceptLayer};
-use monoio_gateway_services::layer::detect::{DetectResult, DetectService};
+use monoio_gateway_services::layer::accept::{Accept, TcpAcceptLayer};
+use monoio_gateway_services::layer::detect::{DetectService};
 use monoio_gateway_services::layer::endpoint::ConnectEndpointLayer;
-use monoio_gateway_services::layer::listen::TcpListenLayer;
+
 use monoio_gateway_services::layer::router::RouterLayer;
+use monoio_gateway_services::layer::tls::{TlsLayer};
 use monoio_gateway_services::layer::transfer::HttpTransferService;
 
 use super::Proxy;
@@ -37,40 +40,60 @@ impl Proxy for HttpProxy {
             for route in self.config.iter() {
                 route_map.insert(route.server_name.to_owned(), route.to_owned());
             }
+            let route_wrapper = Rc::new(route_map);
             let listen_addr = format!("0.0.0.0:{}", self.get_listen_port().unwrap());
             let listener = TcpListener::bind_with_config(listen_addr, &ListenerConfig::default())
                 .expect("err bind address");
+            let listener_wrapper = Rc::new(listener);
             let mut svc = ServiceBuilder::default()
                 .layer(TcpAcceptLayer::default())
                 .service(DetectService::new_http_detect());
-
-            // loop {
-            //     match svc.call(()).await {
-            //         Ok(ty) => match ty {
-            //             Some(detect) => {
-            //                 let (ty, stream): DetectResult = detect;
-            //                 let mut handler = ServiceBuilder::default();
-            //                 match ty {
-            //                     monoio_gateway_core::http::version::Type::HTTP => {
-            //                         let handler = handler
-            //                             .layer(RouterLayer::new(route_map))
-            //                             .layer(ConnectEndpointLayer::new())
-            //                             .service(HttpTransferService::default());
-            //                     }
-            //                     monoio_gateway_core::http::version::Type::HTTPS => {
-            //                         let handler = ServiceBuilder::new();
-            //                     }
-            //                 }
-            //             }
-            //             None => {
-            //                 log::info!("cannot detect http version");
-            //             }
-            //         },
-            //         Err(err) => {
-            //             log::error!("{}", err)
-            //         }
-            //     }
-            // }
+            loop {
+                match svc.call(listener_wrapper.clone()).await {
+                    Ok(ty) => match ty {
+                        Some(detect) => {
+                            let (ty, stream, socketaddr) = detect;
+                            let handler = ServiceBuilder::default();
+                            let acc = Accept::from((stream, socketaddr));
+                            match ty {
+                                monoio_gateway_core::http::version::Type::HTTP => {
+                                    let mut handler = handler
+                                        .layer(RouterLayer::new(route_wrapper.clone()))
+                                        .layer(ConnectEndpointLayer::new())
+                                        .service(HttpTransferService::default());
+                                    match handler.call(acc).await {
+                                        Ok(_) => {}
+                                        Err(e) => {
+                                            log::error!("{}", e);
+                                            continue;
+                                        }
+                                    }
+                                }
+                                monoio_gateway_core::http::version::Type::HTTPS => {
+                                    let mut handler = ServiceBuilder::new()
+                                        .layer(TlsLayer::new())
+                                        .layer(RouterLayer::new(route_wrapper.clone()))
+                                        .layer(ConnectEndpointLayer::new())
+                                        .service(HttpTransferService::default());
+                                    match handler.call(acc).await {
+                                        Ok(_) => {}
+                                        Err(e) => {
+                                            log::error!("{}", e);
+                                            continue;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        None => {
+                            log::info!("cannot detect http version");
+                        }
+                    },
+                    Err(err) => {
+                        log::error!("{}", err)
+                    }
+                }
+            }
 
             // let mut svc = svc
             //     .layer(RouterLayer::new(route_map))

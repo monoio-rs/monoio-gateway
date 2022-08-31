@@ -1,20 +1,24 @@
-use std::{fmt::Debug, fs::File, future::Future, io::BufReader, net::SocketAddr, path::Path};
+use std::{
+    fmt::Debug, fs::File, future::Future, io::BufReader, marker::PhantomData, net::SocketAddr,
+    path::Path,
+};
 
 use anyhow::bail;
 use log::info;
-use monoio::net::TcpStream;
+use monoio::{
+    io::{AsyncReadRent, AsyncWriteRent, Split},
+};
 use monoio_gateway_core::{
     error::GError,
     service::{Layer, Service},
 };
-use monoio_rustls::{TlsAcceptor, TlsConnector};
+use monoio_rustls::{ServerTlsStream, TlsAcceptor, TlsConnector};
 use rustls::{Certificate, OwnedTrustAnchor, PrivateKey, RootCertStore, ServerConfig};
 
-use super::accept::TcpAccept;
+use super::accept::Accept;
 
 pub type CertItem = (Vec<Certificate>, PrivateKey);
-
-pub type TlsAccept = (monoio_rustls::ServerTlsStream<TcpStream>, SocketAddr);
+pub type TlsAccept<S> = (ServerTlsStream<S>, SocketAddr, PhantomData<S>);
 
 #[derive(Clone)]
 pub struct TlsService<T> {
@@ -33,9 +37,10 @@ pub trait Tls {
     fn get_server_certs(&self) -> Self::Response<'_>;
 }
 
-impl<T> Service<TcpAccept> for TlsService<T>
+impl<T, S> Service<Accept<S>> for TlsService<T>
 where
-    T: Service<TlsAccept>,
+    T: Service<TlsAccept<S>>,
+    S: Split + AsyncReadRent + AsyncWriteRent,
 {
     type Response = T::Response;
 
@@ -45,14 +50,14 @@ where
     where
         Self: 'cx;
 
-    fn call(&mut self, accept: TcpAccept) -> Self::Future<'_> {
+    fn call(&mut self, accept: Accept<S>) -> Self::Future<'_> {
         let tls_config = self.config.clone();
         async move {
             info!("begin handshake");
             // TODO: integrate acme
             let tls_acceptor = TlsAcceptor::from(tls_config.unwrap());
             match tls_acceptor.accept(accept.0).await {
-                Ok(stream) => match self.inner.call((stream, accept.1)).await {
+                Ok(stream) => match self.inner.call((stream, accept.1, PhantomData)).await {
                     Ok(resp) => Ok(resp),
                     Err(err) => {
                         bail!("{}", err)

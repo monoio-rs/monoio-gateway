@@ -2,7 +2,10 @@ use std::future::Future;
 
 use anyhow::bail;
 use log::info;
-use monoio::net::TcpStream;
+use monoio::{
+    io::{AsyncReadRent, AsyncWriteRent, Split, Splitable},
+    net::TcpStream,
+};
 use monoio_gateway_core::{
     dns::{http::Domain, Resolvable},
     error::GError,
@@ -20,14 +23,18 @@ use super::{
     transfer::{TransferParams, TransferParamsType},
 };
 
-pub struct EndpointRequestParams<EndPoint> {
-    local: TransferParamsType,
+pub struct EndpointRequestParams<EndPoint, S: AsyncWriteRent> {
+    local: TransferParamsType<S>,
     local_req: Option<Request>,
     endpoint: EndPoint,
 }
 
-impl<Endpoint> EndpointRequestParams<Endpoint> {
-    pub fn new(local: TransferParamsType, endpoint: Endpoint, local_req: Option<Request>) -> Self {
+impl<Endpoint, S: AsyncWriteRent> EndpointRequestParams<Endpoint, S> {
+    pub fn new(
+        local: TransferParamsType<S>,
+        endpoint: Endpoint,
+        local_req: Option<Request>,
+    ) -> Self {
         Self {
             local,
             endpoint,
@@ -41,9 +48,10 @@ pub struct ConnectEndpoint<T> {
     inner: T,
 }
 
-impl<T> Service<EndpointRequestParams<Domain>> for ConnectEndpoint<T>
+impl<T, S> Service<EndpointRequestParams<Domain, S>> for ConnectEndpoint<T>
 where
-    T: Service<TransferParams>,
+    T: Service<TransferParams<S, TcpStream>>,
+    S: Split + AsyncWriteRent + AsyncReadRent,
 {
     type Response = Option<T::Response>;
 
@@ -53,7 +61,7 @@ where
     where
         Self: 'cx;
 
-    fn call(&mut self, req: EndpointRequestParams<Domain>) -> Self::Future<'_> {
+    fn call(&mut self, req: EndpointRequestParams<Domain, S>) -> Self::Future<'_> {
         async move {
             info!("trying to connect to endpoint");
             let resolved = req.endpoint.resolve().await?;
@@ -67,6 +75,7 @@ where
                                 let (rr, rw) = stream.into_split();
                                 let (rr_decoder, rw_encoder) =
                                     (ResponseDecoder::new(rr), GenericEncoder::new(rw));
+
                                 match self
                                     .inner
                                     .call(TransferParams::new(

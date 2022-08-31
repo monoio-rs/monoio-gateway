@@ -2,11 +2,8 @@ use std::future::Future;
 
 use log::info;
 use monoio::{
-    io::sink::SinkExt,
-    net::{
-        tcp::{TcpOwnedReadHalf, TcpOwnedWriteHalf},
-        TcpStream,
-    },
+    io::{sink::SinkExt, AsyncReadRent, AsyncWriteRent, OwnedReadHalf, OwnedWriteHalf, Splitable},
+    net::TcpStream,
 };
 use monoio_gateway_core::{
     error::GError,
@@ -29,16 +26,16 @@ pub struct TcpTransferService;
 
 pub type TcpTransferParams = (TcpStream, TcpStream);
 
-pub struct TransferParams {
-    local: TransferParamsType,  // client
-    remote: TransferParamsType, // server
+pub struct TransferParams<L: AsyncWriteRent + AsyncReadRent, R: AsyncWriteRent + AsyncReadRent> {
+    local: TransferParamsType<L>,  // client
+    remote: TransferParamsType<R>, // server
     local_req: Option<Request>,
 }
 
-impl TransferParams {
+impl<L: AsyncWriteRent + AsyncReadRent, R: AsyncWriteRent + AsyncReadRent> TransferParams<L, R> {
     pub fn new(
-        local: TransferParamsType,
-        remote: TransferParamsType,
+        local: TransferParamsType<L>,
+        remote: TransferParamsType<R>,
         local_req: Option<Request>,
     ) -> Self {
         Self {
@@ -49,23 +46,26 @@ impl TransferParams {
     }
 }
 
-pub enum TransferParamsType {
+pub enum TransferParamsType<S>
+where
+    S: AsyncWriteRent,
+{
     ServerTls(
-        GenericEncoder<monoio_rustls::ServerTlsStreamWriteHalf<TcpStream>>,
-        RequestDecoder<monoio_rustls::ServerTlsStreamReadHalf<TcpStream>>,
+        GenericEncoder<monoio_rustls::ServerTlsStreamWriteHalf<S>>,
+        RequestDecoder<monoio_rustls::ServerTlsStreamReadHalf<S>>,
     ),
     ClientTls(
-        GenericEncoder<monoio_rustls::ClientTlsStreamWriteHalf<TcpStream>>,
-        ResponseDecoder<monoio_rustls::ClientTlsStreamReadHalf<TcpStream>>,
+        GenericEncoder<monoio_rustls::ClientTlsStreamWriteHalf<S>>,
+        ResponseDecoder<monoio_rustls::ClientTlsStreamReadHalf<S>>,
     ),
 
     ServerHttp(
-        GenericEncoder<TcpOwnedWriteHalf>,
-        RequestDecoder<TcpOwnedReadHalf>,
+        GenericEncoder<OwnedWriteHalf<S>>,
+        RequestDecoder<OwnedReadHalf<S>>,
     ),
     ClientHttp(
-        GenericEncoder<TcpOwnedWriteHalf>,
-        ResponseDecoder<TcpOwnedReadHalf>,
+        GenericEncoder<OwnedWriteHalf<S>>,
+        ResponseDecoder<OwnedReadHalf<S>>,
     ),
 }
 
@@ -94,7 +94,11 @@ impl Service<TcpTransferParams> for TcpTransferService {
     }
 }
 
-impl Service<TransferParams> for HttpTransferService {
+impl<L, R> Service<TransferParams<L, R>> for HttpTransferService
+where
+    L: AsyncWriteRent + AsyncReadRent,
+    R: AsyncWriteRent + AsyncReadRent,
+{
     type Response = ();
 
     type Error = GError;
@@ -103,7 +107,7 @@ impl Service<TransferParams> for HttpTransferService {
     where
         Self: 'cx;
 
-    fn call(&mut self, req: TransferParams) -> Self::Future<'_> {
+    fn call(&mut self, req: TransferParams<L, R>) -> Self::Future<'_> {
         async {
             info!("transfering data");
             match req.local {

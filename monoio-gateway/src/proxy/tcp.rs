@@ -1,6 +1,9 @@
 use std::{future::Future, net::SocketAddr, str::FromStr};
 
-use monoio::net::{ListenerConfig, TcpListener, TcpStream};
+use monoio::{
+    io::Splitable,
+    net::{ListenerConfig, TcpListener, TcpStream},
+};
 use monoio_gateway_core::{
     dns::tcp::TcpAddress, error::GError, http::router::RouterConfig, transfer::copy_data,
 };
