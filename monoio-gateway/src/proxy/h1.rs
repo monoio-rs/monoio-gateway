@@ -2,11 +2,8 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::rc::Rc;
 
-
-
-
-
 use monoio::net::{ListenerConfig, TcpListener};
+use monoio_gateway_core::acme::start_acme;
 use monoio_gateway_core::config::ProxyConfig;
 use monoio_gateway_core::dns::http::Domain;
 
@@ -15,11 +12,11 @@ use monoio_gateway_core::http::router::RouterConfig;
 use monoio_gateway_core::service::{Service, ServiceBuilder};
 
 use monoio_gateway_services::layer::accept::{Accept, TcpAcceptLayer};
-use monoio_gateway_services::layer::detect::{DetectService};
+use monoio_gateway_services::layer::detect::DetectService;
 use monoio_gateway_services::layer::endpoint::ConnectEndpointLayer;
 
 use monoio_gateway_services::layer::router::RouterLayer;
-use monoio_gateway_services::layer::tls::{TlsLayer};
+use monoio_gateway_services::layer::tls::TlsLayer;
 use monoio_gateway_services::layer::transfer::HttpTransferService;
 
 use super::Proxy;
@@ -34,7 +31,7 @@ impl Proxy for HttpProxy {
     type Error = GError;
     type OutputFuture<'a> = impl Future<Output = Result<(), Self::Error>> where Self: 'a;
 
-    fn io_loop(&mut self) -> Self::OutputFuture<'_> {
+    fn io_loop(&self) -> Self::OutputFuture<'_> {
         async {
             let mut route_map = HashMap::<String, RouterConfig<Domain>>::new();
             for route in self.config.iter() {
@@ -121,5 +118,19 @@ impl HttpProxy {
         }
     }
 
-    pub fn configure(&mut self) {}
+    /// acme support
+    pub async fn configure_acme(&self) {
+        for conf in self.config.iter() {
+            if let Some(tls) = &conf.tls {
+                if tls.private_key.is_none() || tls.root_ca.is_none() || tls.server_key.is_none() {
+                    continue;
+                }
+                let server_name = conf.server_name.to_owned();
+                let mail = tls.mail.to_owned();
+                monoio::spawn(async move {
+                    let _ = start_acme(server_name, mail).await;
+                });
+            }
+        }
+    }
 }

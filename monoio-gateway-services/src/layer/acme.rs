@@ -26,8 +26,8 @@ impl Service<AcmeParams> for LetsEncryptService {
 
     fn call(&mut self, req: AcmeParams) -> Self::Future<'_> {
         async move {
-            let acme = GenericAcme::new_lets_encrypt(req.0);
-            match acme.acme(req.1.clone()).await {
+            let acme = GenericAcme::new_lets_encrypt(req.0, req.1);
+            match acme.acme(()).await {
                 Ok(Some(cert)) => {
                     let cert: Certificate = cert;
                     Ok(Some(cert))

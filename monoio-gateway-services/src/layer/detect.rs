@@ -1,13 +1,7 @@
 use std::{future::Future, io::Cursor, net::SocketAddr};
 
-use monoio::{
-    io::{AsyncReadRent, AsyncWriteRent, PrefixedReadIo, Split},
-};
-use monoio_gateway_core::{
-    error::GError,
-    http::{version::Type},
-    service::Service,
-};
+use monoio::io::{AsyncReadRent, AsyncWriteRent, PrefixedReadIo, Split};
+use monoio_gateway_core::{error::GError, http::version::Type, service::Service};
 
 use super::accept::Accept;
 

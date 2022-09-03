@@ -15,7 +15,7 @@ pub mod util;
 
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, RwLock},
 };
 
 use acme_lib::Certificate;
@@ -29,9 +29,9 @@ const MAX_CONFIG_SIZE_LIMIT: usize = 8072;
 #[cfg(feature = "acme")]
 lazy_static! {
     /// editable acme dir
-    pub static ref ACME_DIR: String = String::from("/usr/local/monoio-gateway/acme");
+    pub static ref ACME_DIR: String = String::from("/var/monoio-gateway/acme");
 
-    pub static ref CERTIFICATE_MAP: Arc<Mutex<HashMap<String, Certificate>>> = Arc::new(Mutex::new(HashMap::new()));
+    pub static ref CERTIFICATE_MAP: Arc<RwLock<HashMap<String, Certificate>>> = Arc::new(RwLock::new(HashMap::new()));
 }
 
 pub trait Builder<Config> {

@@ -10,5 +10,5 @@ pub trait Proxy {
     where
         Self: 'a;
 
-    fn io_loop(&mut self) -> Self::OutputFuture<'_>;
+    fn io_loop(&self) -> Self::OutputFuture<'_>;
 }

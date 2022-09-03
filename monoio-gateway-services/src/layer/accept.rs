@@ -2,9 +2,7 @@ use std::{fmt::Display, future::Future, net::SocketAddr, rc::Rc};
 
 use anyhow::bail;
 use log::info;
-use monoio::{
-    net::{TcpListener, TcpStream},
-};
+use monoio::net::{TcpListener, TcpStream};
 use monoio_gateway_core::{
     error::GError,
     service::{Layer, Service},

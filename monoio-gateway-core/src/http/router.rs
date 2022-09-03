@@ -29,6 +29,7 @@ pub struct TlsConfig {
     pub root_ca: Option<String>,
     pub server_key: Option<String>,
     pub private_key: Option<String>,
+    pub acme_uri: Option<String>,
 }
 
 impl<A> RouterConfig<A> {

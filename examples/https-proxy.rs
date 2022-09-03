@@ -4,7 +4,7 @@ use monoio_gateway::{gateway::GatewayAgentable, init_env};
 use monoio_gateway_core::{
     dns::http::Domain,
     http::router::{RouterConfig, RouterRule, TlsConfig},
-    service::{ServiceBuilder},
+    service::ServiceBuilder,
 };
 use monoio_gateway_services::layer::{
     accept::TcpAcceptLayer, endpoint::ConnectEndpointLayer, listen::TcpListenLayer,
@@ -29,6 +29,7 @@ async fn main() -> Result<(), anyhow::Error> {
             root_ca: None,
             server_key: None,
             private_key: None,
+            acme_uri: None,
         }),
     };
     let mut route_map = HashMap::new();

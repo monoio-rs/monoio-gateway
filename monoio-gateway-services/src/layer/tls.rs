@@ -5,12 +5,11 @@ use std::{
 
 use anyhow::bail;
 use log::info;
-use monoio::{
-    io::{AsyncReadRent, AsyncWriteRent, Split},
-};
+use monoio::io::{AsyncReadRent, AsyncWriteRent, Split};
 use monoio_gateway_core::{
     error::GError,
     service::{Layer, Service},
+    CERTIFICATE_MAP,
 };
 use monoio_rustls::{ServerTlsStream, TlsAcceptor, TlsConnector};
 use rustls::{Certificate, OwnedTrustAnchor, PrivateKey, RootCertStore, ServerConfig};
@@ -155,6 +154,7 @@ pub fn get_default_tls_connector() -> TlsConnector {
             ta.name_constraints,
         )
     }));
+    CERTIFICATE_MAP.read();
     let config = rustls::ClientConfig::builder()
         .with_safe_defaults()
         .with_root_certificates(root_store)

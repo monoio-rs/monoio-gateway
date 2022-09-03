@@ -21,7 +21,7 @@ impl Proxy for TcpProxy {
     type Error = anyhow::Error;
     type OutputFuture<'a> = impl Future<Output = Result<(), Self::Error>> where Self: 'a;
 
-    fn io_loop(&mut self) -> Self::OutputFuture<'_> {
+    fn io_loop(&self) -> Self::OutputFuture<'_> {
         async {
             println!("starting a new tcp proxy");
             // bind inbound port

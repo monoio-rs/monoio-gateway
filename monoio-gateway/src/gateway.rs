@@ -37,7 +37,7 @@ impl Gatewayable<TcpAddress> for Gateway<TcpAddress> {
 
     fn serve(&self) -> Self::GatewayFuture<'_> {
         async move {
-            let mut proxy = TcpProxy::build_with_config(&self.config);
+            let proxy = TcpProxy::build_with_config(&self.config);
             proxy.io_loop().await
         }
     }
@@ -52,7 +52,7 @@ impl Gatewayable<Domain> for Gateway<Domain> {
 
     fn serve<'cx>(&self) -> Self::GatewayFuture<'_> {
         async move {
-            let mut proxy = HttpProxy::build_with_config(&self.config);
+            let proxy = HttpProxy::build_with_config(&self.config);
             proxy.io_loop().await
         }
     }
@@ -122,8 +122,9 @@ impl GatewayAgentable for GatewayAgent<Domain> {
 
     fn serve(&mut self) -> Self::Future<'_> {
         async {
-            let mut proxy = HttpProxy::build_with_config(&self.config);
-            proxy.io_loop().await
+            let proxy = HttpProxy::build_with_config(&self.config);
+            let _ = monoio::join!(proxy.io_loop(), proxy.configure_acme());
+            Ok(())
         }
     }
 }

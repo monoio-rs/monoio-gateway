@@ -3,7 +3,7 @@ use monoio_gateway_core::{
     dns::http::Domain,
     error::GError,
     http::router::{RouterConfig, RouterRule},
-    service::{ServiceBuilder},
+    service::ServiceBuilder,
 };
 use monoio_gateway_services::layer::{
     accept::TcpAcceptLayer, delay::DelayLayer, endpoint::ConnectEndpointLayer,

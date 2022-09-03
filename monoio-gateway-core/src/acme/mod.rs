@@ -8,11 +8,11 @@ mod acme;
 
 pub type GenericAcme = acme::GenericAcme;
 
+pub use acme::start_acme;
+
 /// ACME agent trait
 pub trait Acme {
     type Response;
-
-    type Email;
 
     type Error: Display;
 
@@ -20,7 +20,7 @@ pub trait Acme {
     where
         Self: 'cx;
 
-    fn acme(&self, acme_request: Self::Email) -> Self::Future<'_>;
+    fn acme(&self, acme_request: ()) -> Self::Future<'_>;
 }
 
 /// for those domain, to get acme path

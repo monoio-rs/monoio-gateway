@@ -24,7 +24,7 @@ async fn main() -> Result<(), anyhow::Error> {
         }],
         tls: None,
     }];
-    let mut tcp_proxy = TcpProxy::build_with_config(&router_config);
+    let tcp_proxy = TcpProxy::build_with_config(&router_config);
     tcp_proxy.io_loop().await?;
     Ok(())
 }
