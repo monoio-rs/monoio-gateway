@@ -1,5 +1,6 @@
 use std::{future::Future, io::Cursor, net::SocketAddr};
 
+use log::info;
 use monoio::io::{AsyncReadRent, AsyncWriteRent, PrefixedReadIo, Split};
 use monoio_gateway_core::{error::GError, http::version::Type, service::Service};
 
@@ -36,11 +37,15 @@ where
         // we use first 3 bytes to read
         let buf = vec![0 as u8; 3];
         async move {
+            info!("detecting client protocol");
             let (mut tcp, socketaddr) = acc;
             let (sz, buf) = tcp.read(buf).await;
             // for lint
             let buf: Vec<u8> = buf;
-            let _sz = sz?;
+            let sz = sz?;
+            if sz == 0 {
+                return Ok(None);
+            }
             let ssl_record_type: u8 = buf[0];
             let ssl_version_b1: u8 = buf[1];
             // TODO: add ssl version detect

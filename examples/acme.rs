@@ -13,8 +13,7 @@ async fn main() -> Result<(), GError> {
     init_env();
     let server_name = "monoio-gateway.kingtous.cn";
     let mail = "me@kingtous.cn";
-
-    // build gateway
+    // http handler for compatiblity
     let server_config = RouterConfig {
         server_name: server_name.to_string(),
         listen_port: 80,
@@ -22,16 +21,20 @@ async fn main() -> Result<(), GError> {
             path: "/".to_string(),
             proxy_pass: Domain::with_uri("https://cv.kingtous.cn".parse().unwrap()),
         }],
-        tls: Some(TlsConfig {
-            mail: mail.to_string(),
-            // None to use
-            root_ca: None,
-            server_key: None,
-            private_key: None,
-            acme_uri: None,
-        }),
+        tls: None,
     };
-    let mut gateway = GatewayAgent::<Domain>::build(&vec![server_config]);
-    let _ = gateway.serve().await;
+    // ssl handler
+    let mut server_ssl_config = server_config.clone();
+    server_ssl_config.listen_port = 443;
+    server_ssl_config.tls = Some(TlsConfig {
+        mail: mail.to_string(),
+        // None to use prebuilt acme support
+        root_ca: None,
+        server_key: None,
+        private_key: None,
+    });
+    let mut http_gateway = GatewayAgent::<Domain>::build(&vec![server_config]);
+    let mut ssl_gateway = GatewayAgent::<Domain>::build(&vec![server_ssl_config]);
+    let _ = monoio::join!(http_gateway.serve(), ssl_gateway.serve());
     Ok(())
 }

@@ -9,6 +9,7 @@ use monoio::{
 use monoio_gateway_core::{
     dns::{http::Domain, Resolvable},
     error::GError,
+    http::ssl::get_default_tls_connector,
     service::{Layer, Service},
 };
 use monoio_http::{
@@ -18,10 +19,7 @@ use monoio_http::{
 
 use rustls::ServerName;
 
-use super::{
-    tls::get_default_tls_connector,
-    transfer::{TransferParams, TransferParamsType},
-};
+use super::transfer::{TransferParams, TransferParamsType};
 
 pub struct EndpointRequestParams<EndPoint, S: AsyncWriteRent> {
     local: TransferParamsType<S>,

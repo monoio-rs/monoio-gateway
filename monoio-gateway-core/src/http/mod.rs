@@ -2,6 +2,7 @@ use std::future::Future;
 
 pub mod detect;
 pub mod router;
+pub mod ssl;
 pub mod version;
 
 pub trait Detect<I> {

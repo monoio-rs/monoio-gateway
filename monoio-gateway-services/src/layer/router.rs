@@ -2,20 +2,23 @@ use std::{collections::HashMap, future::Future, path::Path, rc::Rc};
 
 use anyhow::bail;
 
+use bytes::Bytes;
+use http::response::Builder;
 use log::{debug, info};
-use monoio::io::{sink::Sink, stream::Stream, AsyncReadRent, AsyncWriteRent, Split, Splitable};
+use monoio::io::{sink::SinkExt, stream::Stream, AsyncReadRent, AsyncWriteRent, Split, Splitable};
 use monoio_gateway_core::{
     acme::Acmed,
     dns::{http::Domain, Resolvable},
     error::GError,
     http::router::{RouterConfig, RouterRule},
     service::{Layer, Service},
+    ACME_URI_PREFIX,
 };
 use monoio_http::{
     common::request::Request,
     h1::{
         codec::{decoder::RequestDecoder, encoder::GenericEncoder},
-        payload::Payload,
+        payload::{FixedPayload, Payload},
     },
 };
 
@@ -79,7 +82,9 @@ where
                                             Ok(resp) => {
                                                 return Ok(Some(resp));
                                             }
-                                            Err(_) => bail!("endpoint communication failed"),
+                                            Err(err) => {
+                                                bail!("endpoint communication failed: {}", err)
+                                            }
                                         }
                                     } else {
                                         // no match router rule
@@ -167,7 +172,9 @@ where
                                             Ok(resp) => {
                                                 return Ok(Some(resp));
                                             }
-                                            Err(_) => bail!("endpoint communication failed"),
+                                            Err(err) => {
+                                                bail!("endpoint communication failed: {}", err)
+                                            }
                                         }
                                     } else {
                                         // no match router rule
@@ -248,7 +255,9 @@ where
                                             Ok(resp) => {
                                                 return Ok(Some(resp));
                                             }
-                                            Err(_) => bail!("endpoint communication failed"),
+                                            Err(err) => {
+                                                bail!("endpoint communication failed: {}", err)
+                                            }
                                         }
                                     } else {
                                         // no match router rule
@@ -299,24 +308,21 @@ where
         &self,
         req: Request<Payload>,
         conf: &RouterConfig<A>,
-        mut stream: S,
+        stream: S,
     ) -> Result<bool, GError> {
         let name = conf.server_name.get_acme_path()?;
         let p = Path::new(&name);
-        let _default_path = p.join(".well-known").to_string_lossy().to_string();
         match &conf.tls {
-            Some(tls_config) => {
-                let acme_uri = tls_config
-                    .acme_uri
-                    .clone()
-                    .or(Some(".well-known/".to_string()))
-                    .unwrap();
+            Some(_) => {
                 let req_path = req.uri().path().to_string();
                 log::info!("acme: request path: {}", req_path);
-                if req_path.starts_with(&acme_uri) {
-                    log::info!("acme: read path: {}", req_path);
+                if req_path.starts_with(ACME_URI_PREFIX) {
+                    let mut encoder = GenericEncoder::new(stream);
                     // read files
-                    match monoio::fs::File::open(req_path).await {
+                    let abs_path = p.join(&req_path[1..]);
+                    log::info!("acme: read path: {:?}", abs_path);
+                    let mut file_bytes = vec![];
+                    match monoio::fs::File::open(Path::new(&abs_path)).await {
                         Ok(challenge_file) => {
                             let mut pos = 0;
                             loop {
@@ -324,21 +330,28 @@ where
                                 let (n, mut read) = challenge_file.read_at(buf, pos).await;
                                 let n = n? as u64;
                                 if n == 0 {
-                                    // EOF
-                                    stream.flush().await;
+                                    // EOF, let's send our challenge now.
                                     break;
                                 }
                                 pos += n;
                                 unsafe { read.set_len(n as usize) };
-                                stream.write(read).await;
+                                file_bytes.append(&mut read);
                             }
+                            let bytes = Bytes::from(file_bytes);
+                            let response = Builder::new()
+                                .body(Payload::Fixed(FixedPayload::new(bytes)))
+                                .unwrap();
+                            encoder.send_and_flush(response).await?;
                             info!("acme challenge replied");
                             return Ok(true);
                         }
                         Err(e) => {
                             log::warn!("find acme file error: {}", e);
-                            stream.write(b"404 not found").await;
-                            stream.flush().await;
+                            let data = Bytes::from_static(b"404 not found --- Monoio Gateway.");
+                            let response = Builder::new()
+                                .body(Payload::Fixed(FixedPayload::new(data)))
+                                .unwrap();
+                            encoder.send_and_flush(response).await?;
                         }
                     }
                 }
@@ -378,6 +391,11 @@ fn longest_match<'cx>(
     req_path: &'cx str,
     routes: &'cx Vec<RouterRule<Domain>>,
 ) -> Option<&'cx RouterRule<Domain>> {
+    info!("request path: {}", req_path);
+    // TODO: opt progress
+    if req_path.starts_with(ACME_URI_PREFIX) {
+        return None;
+    }
     let mut target_route = None;
     let mut route_len = 0;
     for route in routes.iter() {

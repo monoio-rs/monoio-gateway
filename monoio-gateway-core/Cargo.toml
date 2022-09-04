@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 monoio = {path = "../../monoio/monoio"}
 monoio-http = {path = "../../monoio-http/monoio-http"}
+monoio-rustls = {path = "../../monoio-tls/monoio-rustls"}
 
 thiserror = "1"
 anyhow = "1"
@@ -24,6 +25,10 @@ figlet-rs = "0.1"
 
 acme-lib = "0.8"
 lazy_static = "1"
+
+rustls = {version = "0.20", features = ["tls12"]}
+rustls-pemfile = "1"
+webpki-roots = "0.22"
 
 [features]
 default = []

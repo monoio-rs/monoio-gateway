@@ -1,5 +1,7 @@
 use std::future::Future;
 
+use anyhow::bail;
+use log::info;
 use monoio_gateway_core::{
     config::{Config, InBoundConfig, OutBoundConfig},
     dns::{http::Domain, tcp::TcpAddress},
@@ -122,8 +124,17 @@ impl GatewayAgentable for GatewayAgent<Domain> {
 
     fn serve(&mut self) -> Self::Future<'_> {
         async {
+            info!(
+                "start serving at port {}",
+                self.config.first().unwrap().listen_port
+            );
             let proxy = HttpProxy::build_with_config(&self.config);
-            let _ = monoio::join!(proxy.io_loop(), proxy.configure_acme());
+            match proxy.io_loop().await {
+                Err(err) => {
+                    bail!("{}", err);
+                }
+                _ => {}
+            }
             Ok(())
         }
     }

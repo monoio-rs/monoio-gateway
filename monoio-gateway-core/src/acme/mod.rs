@@ -8,7 +8,7 @@ mod acme;
 
 pub type GenericAcme = acme::GenericAcme;
 
-pub use acme::start_acme;
+pub use acme::{start_acme, update_certificate};
 
 /// ACME agent trait
 pub trait Acme {
@@ -29,7 +29,7 @@ pub trait Acmed {
 }
 
 pub(crate) fn get_acme_path(domain: &str) -> Result<OsString, GError> {
-    let path = Path::new(&ACME_DIR.to_string()).join(Path::new(&format!("acme/{}", domain)));
+    let path = Path::new(&ACME_DIR.to_string()).join(Path::new(domain));
     info!("acme path for {}: {:?}", domain, path);
     // ensure path exists
     create_dir_all(path.to_owned())?;

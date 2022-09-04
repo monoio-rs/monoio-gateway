@@ -29,7 +29,6 @@ async fn main() -> Result<(), anyhow::Error> {
             root_ca: None,
             server_key: None,
             private_key: None,
-            acme_uri: None,
         }),
     };
     let mut route_map = HashMap::new();

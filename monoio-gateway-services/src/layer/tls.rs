@@ -1,18 +1,16 @@
-use std::{
-    fmt::Debug, fs::File, future::Future, io::BufReader, marker::PhantomData, net::SocketAddr,
-    path::Path,
-};
+use std::{future::Future, marker::PhantomData, net::SocketAddr};
 
 use anyhow::bail;
 use log::info;
 use monoio::io::{AsyncReadRent, AsyncWriteRent, Split};
 use monoio_gateway_core::{
     error::GError,
+    http::ssl::{read_pem_file, read_private_key_file},
     service::{Layer, Service},
-    CERTIFICATE_MAP,
+    CERTIFICATE_RESOLVER,
 };
-use monoio_rustls::{ServerTlsStream, TlsAcceptor, TlsConnector};
-use rustls::{Certificate, OwnedTrustAnchor, PrivateKey, RootCertStore, ServerConfig};
+use monoio_rustls::{ServerTlsStream, TlsAcceptor};
+use rustls::{Certificate, PrivateKey, ServerConfig};
 
 use super::accept::Accept;
 
@@ -54,7 +52,21 @@ where
         async move {
             info!("begin handshake");
             // TODO: integrate acme
-            let tls_acceptor = TlsAcceptor::from(tls_config.unwrap());
+            let tls_acceptor: TlsAcceptor;
+            match tls_config {
+                Some(tls_config) => {
+                    tls_acceptor = TlsAcceptor::from(tls_config);
+                }
+                None => {
+                    // default acme cert
+                    let config = ServerConfig::builder()
+                        .with_safe_defaults()
+                        .with_no_client_auth()
+                        .with_cert_resolver(CERTIFICATE_RESOLVER.clone());
+
+                    tls_acceptor = TlsAcceptor::from(config);
+                }
+            }
             match tls_acceptor.accept(accept.0).await {
                 Ok(stream) => match self.inner.call((stream, accept.1, PhantomData)).await {
                     Ok(resp) => Ok(resp),
@@ -85,7 +97,7 @@ impl TlsLayer {
         let ca_cert = Certificate(ca);
         let crt = read_pem_file(crt_cert)?;
         let crt_cert = Certificate(crt);
-        let private = read_private_key(private_key)?;
+        let private = read_private_key_file(private_key)?;
         let private_cert = PrivateKey(private);
 
         let config = ServerConfig::builder()
@@ -122,42 +134,4 @@ impl<S> Layer<S> for TlsLayer {
             inner: service,
         }
     }
-}
-
-pub fn read_pem_file(path: impl AsRef<Path> + Debug + Clone) -> Result<Vec<u8>, GError> {
-    let f = File::open(path.clone())?;
-    let mut reader = BufReader::new(f);
-    let mut pems = rustls_pemfile::certs(&mut reader)?;
-    match pems.pop() {
-        Some(pem) => Ok(pem),
-        None => bail!("pem file validate failed: {:?}", path),
-    }
-}
-
-pub fn read_private_key(path: impl AsRef<Path> + Debug + Clone) -> Result<Vec<u8>, GError> {
-    let f = File::open(path.clone())?;
-    let mut reader = BufReader::new(f);
-    let mut pems = rustls_pemfile::rsa_private_keys(&mut reader)?;
-    match pems.pop() {
-        Some(pem) => Ok(pem),
-        None => bail!("pem file validate failed: {:?}", path),
-    }
-}
-
-#[inline]
-pub fn get_default_tls_connector() -> TlsConnector {
-    let mut root_store = RootCertStore::empty();
-    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
-        OwnedTrustAnchor::from_subject_spki_name_constraints(
-            ta.subject,
-            ta.spki,
-            ta.name_constraints,
-        )
-    }));
-    CERTIFICATE_MAP.read();
-    let config = rustls::ClientConfig::builder()
-        .with_safe_defaults()
-        .with_root_certificates(root_store)
-        .with_no_client_auth();
-    TlsConnector::from(config)
 }

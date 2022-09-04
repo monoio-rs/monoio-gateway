@@ -1,10 +1,21 @@
-use std::{future::Future, path::Path};
+use std::{
+    future::Future,
+    io::{Cursor, Write},
+    path::Path,
+    sync::Arc,
+};
 
-use acme_lib::{create_p384_key, persist::FilePersist, Certificate, Directory, DirectoryUrl};
+use acme_lib::{create_rsa_key, persist::FilePersist, Certificate, Directory, DirectoryUrl};
 use anyhow::bail;
 use log::{debug, info};
+use rustls::sign::CertifiedKey;
 
-use crate::{acme::Acmed, error::GError, ACME_DIR, CERTIFICATE_MAP};
+use crate::{
+    acme::Acmed,
+    error::GError,
+    http::ssl::{read_pem_chain, read_private_key},
+    CERTIFICATE_MAP,
+};
 
 use super::Acme;
 
@@ -43,19 +54,20 @@ impl GenericAcme {
     }
 
     async fn write_proof(&self, token: &str, proof: String) -> Result<(), GError> {
-        let path_str = Path::new(&ACME_DIR.to_string())
-            .join(Path::new(&self.domain))
+        let path_str = Path::new(&self.domain.get_acme_path()?)
             .join(Path::new(&format!(".well-known/acme-challenge/{}", token)));
-        debug!("writing proof to {:?}", path_str);
+        info!("writing proof to {:?}", path_str);
         // create if not exist
         let path = Path::new(&path_str);
         let parent = path.parent().unwrap();
         if !parent.exists() {
             std::fs::create_dir_all(parent.to_owned())?;
         }
-        let out = monoio::fs::File::create(path).await?;
-        let _ = out.write_all_at(proof.into_bytes(), 0).await;
-        out.close().await?;
+        info!("creating challenge file {:?}", path_str);
+        let mut out = std::fs::File::create(path)?;
+        info!("writing challenge file {:?}", path_str);
+        let _ = out.write_all(proof.as_bytes());
+        info!("proof wrote to {:?}", path_str);
         Ok(())
     }
 }
@@ -77,12 +89,12 @@ impl Acme for GenericAcme {
                     // create new order
                     let acc = directory.account(&self.mail)?;
                     let mut order = acc.new_order(&self.domain, &[])?;
-                    debug!("created new order");
+                    debug!("acme: created new order");
                     // try [curr_times] times
                     let mut curr_times = 0;
                     let ord_csr = loop {
                         if curr_times > self.validate_retry_times {
-                            bail!("acme failed after {} requests", self.validate_retry_times);
+                            bail!("acme: failed after {} requests", self.validate_retry_times);
                         }
                         info!("try {} times for {}", curr_times, self.domain);
                         if let Some(ord_csr) = order.confirm_validations() {
@@ -98,14 +110,14 @@ impl Acme for GenericAcme {
                         curr_times += 1;
                     };
                     // validate success
-                    info!("validate success, downloading certificate");
-                    let pkey_pri = create_p384_key();
+                    info!("🚀 acme validate success, downloading certificate");
+                    let pkey_pri = create_rsa_key(3072);
                     let ord_cert = ord_csr.finalize_pkey(pkey_pri, self.finalize_delay)?;
                     let cert = ord_cert.download_and_save_cert()?;
                     return Ok(Some(cert));
                 }
                 Err(err) => {
-                    debug!("get acme directory failed");
+                    log::error!("get acme directory failed");
                     bail!("{}", err)
                 }
             }
@@ -124,23 +136,79 @@ fn get_lets_encrypt_url(staging: bool) -> &'static str {
 /// This function is used to fetch Let's Encrypt Certificate from staging server
 pub async fn start_acme(server_name: String, mail: String) -> Result<(), GError> {
     let location = server_name.get_acme_path()?;
-    let acme = GenericAcme::new_lets_encrypt_staging(server_name.to_string(), mail.to_string());
+    let acme = GenericAcme::new_lets_encrypt(server_name.to_string(), mail.to_string());
     match acme.acme(()).await {
         Ok(Some(cert)) => {
             // lint
             let cert: Certificate = cert;
-            CERTIFICATE_MAP
-                .write()
-                .unwrap()
-                .insert(server_name.to_string(), cert);
-            println!("get cert, location: {:?}", location);
+            info!("private key: {}", cert.private_key());
+            update_certificate(
+                server_name.to_owned(),
+                Cursor::new(cert.certificate().as_bytes()),
+                Cursor::new(cert.private_key().as_bytes()),
+            );
+            info!("get cert, location: {:?}", location);
+            // sync to disk
+            save_cert_to_path(server_name, cert)?;
         }
         Err(err) => {
             bail!("{}", err)
         }
         _ => {
-            // retry
+            // TODO: retry
         }
     }
+    Ok(())
+}
+
+/// update certificate to global certificate map
+pub fn update_certificate<R>(server_name: String, chain: R, priv_key: R)
+where
+    R: std::io::Read,
+{
+    log::info!("updating ssl certificate for {}", server_name);
+    let key = read_private_key(priv_key);
+    let chain = read_pem_chain(chain);
+    if let Err(e) = key {
+        log::error!("private key of {} validate failed: {}", server_name, e);
+        return;
+    }
+    let key = rustls::sign::any_supported_type(&rustls::PrivateKey(key.unwrap()));
+    let mut certs = vec![];
+    if key.is_ok() && chain.is_ok() {
+        let chain = chain.unwrap();
+        for cert in chain.into_iter() {
+            let cert = rustls::Certificate(cert);
+            certs.push(cert);
+        }
+        let certified_key = CertifiedKey::new(certs, key.unwrap());
+        CERTIFICATE_MAP
+            .write()
+            .unwrap()
+            .insert(server_name, Arc::new(certified_key));
+    } else {
+        log::warn!(
+            "update ssl for {} failed. chain: {}, key: {}",
+            server_name,
+            chain.is_ok(),
+            key.is_ok()
+        );
+    }
+}
+
+/// save cert to disk
+fn save_cert_to_path(server_name: String, cert: Certificate) -> Result<(), GError> {
+    let path = server_name.get_acme_path()?;
+    let pem_file_path = Path::new(&path).join("pem");
+    let priv_file_path = Path::new(&path).join("priv");
+    let mut pem = std::fs::File::create(pem_file_path).unwrap();
+    let mut private = std::fs::File::create(priv_file_path).unwrap();
+    pem.write_all(cert.certificate().as_ref())?;
+    private.write_all(cert.private_key().as_ref())?;
+    info!(
+        "🚀 acme cert for {} is last for {} days.",
+        server_name,
+        cert.valid_days_left()
+    );
     Ok(())
 }

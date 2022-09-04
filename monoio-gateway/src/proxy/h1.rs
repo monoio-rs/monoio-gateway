@@ -1,9 +1,14 @@
 use std::collections::HashMap;
 use std::future::Future;
+use std::io::Cursor;
+use std::path::Path;
 use std::rc::Rc;
 
+use std::thread;
+
+use log::info;
 use monoio::net::{ListenerConfig, TcpListener};
-use monoio_gateway_core::acme::start_acme;
+use monoio_gateway_core::acme::{start_acme, update_certificate, Acmed};
 use monoio_gateway_core::config::ProxyConfig;
 use monoio_gateway_core::dns::http::Domain;
 
@@ -54,6 +59,7 @@ impl Proxy for HttpProxy {
                             let acc = Accept::from((stream, socketaddr));
                             match ty {
                                 monoio_gateway_core::http::version::Type::HTTP => {
+                                    info!("a http client detected");
                                     let mut handler = handler
                                         .layer(RouterLayer::new(route_wrapper.clone()))
                                         .layer(ConnectEndpointLayer::new())
@@ -67,6 +73,7 @@ impl Proxy for HttpProxy {
                                     }
                                 }
                                 monoio_gateway_core::http::version::Type::HTTPS => {
+                                    info!("a https client detected");
                                     let mut handler = ServiceBuilder::new()
                                         .layer(TlsLayer::new())
                                         .layer(RouterLayer::new(route_wrapper.clone()))
@@ -106,6 +113,7 @@ impl Proxy for HttpProxy {
 
 impl HttpProxy {
     pub fn build_with_config(config: &Vec<RouterConfig<Domain>>) -> Self {
+        configure_acme(config);
         Self {
             config: config.clone(),
         }
@@ -117,20 +125,58 @@ impl HttpProxy {
             None => None,
         }
     }
+}
 
-    /// acme support
-    pub async fn configure_acme(&self) {
-        for conf in self.config.iter() {
-            if let Some(tls) = &conf.tls {
-                if tls.private_key.is_none() || tls.root_ca.is_none() || tls.server_key.is_none() {
-                    continue;
-                }
-                let server_name = conf.server_name.to_owned();
-                let mail = tls.mail.to_owned();
-                monoio::spawn(async move {
-                    let _ = start_acme(server_name, mail).await;
-                });
+/// acme support
+fn configure_acme(config: &Vec<RouterConfig<Domain>>) {
+    // load local certificate
+    for conf in config.iter() {
+        info!("acme: load {}", conf.server_name);
+        if let Some(tls) = &conf.tls {
+            if tls.private_key.is_some() || tls.root_ca.is_some() || tls.server_key.is_some() {
+                continue;
             }
+            // check local ssl
+            let path = conf.server_name.get_acme_path().unwrap();
+            let (pem, key) = (Path::new(&path).join("pem"), Path::new(&path).join("priv"));
+            let (pem_content, key_content) =
+                (std::fs::read(pem.clone()), std::fs::read(key.clone()));
+
+            if pem_content.is_ok() && key_content.is_ok() {
+                info!(
+                    "🚀 ssl certificates for {} existed, let's load it.",
+                    conf.server_name
+                );
+                let content = key_content.unwrap();
+                update_certificate(
+                    conf.server_name.to_owned(),
+                    Cursor::new(pem_content.unwrap()),
+                    Cursor::new(content),
+                );
+                info!("🚀 ssl certificates for {} loaded.", conf.server_name);
+                continue;
+            }
+            info!(
+                "{} has no local ssl certificate, prepare requesting acme.",
+                conf.server_name
+            );
+            // prepare acme
+            let server_name = conf.server_name.to_owned();
+            let mail = tls.mail.to_owned();
+            thread::spawn(move || {
+                monoio::start::<monoio::LegacyDriver, _>(async move {
+                    info!(
+                        "{} is requesting certificate using email {}",
+                        server_name, mail
+                    );
+                    match start_acme(server_name, mail).await {
+                        Err(err) => {
+                            log::error!("requesting certificate failed: {}", err);
+                        }
+                        _ => {}
+                    };
+                });
+            });
         }
     }
 }

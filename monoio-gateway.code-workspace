@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../monoio-http"
+		},
+		{
+			"path": "../monoio-codec"
+		},
+		{
+			"path": "../monoio"
+		},
+		{
+			"path": "../../../../var/monoio-gateway/acme/monoio-gateway.kingtous.cn"
+		}
+	],
+	"settings": {}
+}

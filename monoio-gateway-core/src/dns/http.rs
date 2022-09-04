@@ -77,7 +77,11 @@ impl Resolvable for Domain {
     fn resolve(&self) -> Self::ResolveFuture<'_> {
         async {
             match self.authority() {
-                Some(authority) => Ok(Some(authority.as_str().to_string())),
+                Some(authority) => Ok(Some(format!(
+                    "{}:{}",
+                    authority.as_str().to_string(),
+                    self.port()
+                ))),
                 None => {
                     // or return None
                     bail!("No authority in this domain!")

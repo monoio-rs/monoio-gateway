@@ -18,20 +18,23 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use acme_lib::Certificate;
 use figlet_rs::FIGfont;
 
 #[cfg(feature = "acme")]
 use lazy_static::lazy_static;
 
-const MAX_CONFIG_SIZE_LIMIT: usize = 8072;
+use crate::http::ssl::CertificateResolver;
+
+pub const MAX_CONFIG_SIZE_LIMIT: usize = 8072;
+pub const ACME_URI_PREFIX: &str = "/.well-known";
 
 #[cfg(feature = "acme")]
 lazy_static! {
     /// editable acme dir
     pub static ref ACME_DIR: String = String::from("/var/monoio-gateway/acme");
-
-    pub static ref CERTIFICATE_MAP: Arc<RwLock<HashMap<String, Certificate>>> = Arc::new(RwLock::new(HashMap::new()));
+    /// ssl
+    pub static ref CERTIFICATE_MAP: Arc<RwLock<HashMap<String, Arc<rustls::sign::CertifiedKey>>>> = Arc::new(RwLock::new(HashMap::new()));
+    pub static ref CERTIFICATE_RESOLVER: Arc<CertificateResolver> = Arc::new(CertificateResolver::new());
 }
 
 pub trait Builder<Config> {
