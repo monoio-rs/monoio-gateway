@@ -2,7 +2,7 @@
   "configs": [
     {
       "server_name": "test.kingtous.cn",
-      "listen_port": 5000,
+      "listen_port": [80, 443],
       "rules": [
         {
           "path": "/",
@@ -24,10 +24,7 @@
         }
       ],
       "tls": {
-        "mail": "kingtous@qq.com",
-        "root_ca": "rootCA.crt",
-        "server_key": "server.crt",
-        "private_key": "server.key"
+        "mail": "me@kingtous.cn"
       }
     }
   ]

@@ -1,5 +1,4 @@
 use monoio_gateway::{
-    gateway::GatewayAgentable,
     init_env,
     proxy::{tcp::TcpProxy, Proxy},
 };
@@ -13,11 +12,11 @@ use monoio_gateway_core::{
 async fn main() -> Result<(), anyhow::Error> {
     init_env();
     let target = TcpAddress::new("127.0.0.1:8000".parse().expect("tcp address is not valid"));
-    let listen_port = 5000;
+    let _listen_port = 5000;
     let server_name = "".to_string();
     let router_config = vec![RouterConfig {
         server_name: server_name.to_owned(),
-        listen_port,
+        listen_port: vec![80],
         rules: vec![RouterRule {
             path: "".to_string(),
             proxy_pass: target.clone(),

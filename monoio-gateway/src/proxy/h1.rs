@@ -121,7 +121,7 @@ impl HttpProxy {
 
     pub fn get_listen_port(&self) -> Option<u16> {
         match self.config.first() {
-            Some(port) => Some(port.listen_port),
+            Some(port) => Some(*port.listen_port.first().unwrap()),
             None => None,
         }
     }

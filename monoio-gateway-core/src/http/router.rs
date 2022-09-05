@@ -18,7 +18,7 @@ pub struct RoutersConfig<A> {
 #[derive(Clone, Serialize, Deserialize)]
 pub struct RouterConfig<A> {
     pub server_name: String,
-    pub listen_port: u16,
+    pub listen_port: Vec<u16>,
     pub rules: Vec<RouterRule<A>>,
     pub tls: Option<TlsConfig>,
 }
@@ -67,12 +67,16 @@ where
         let mut rule_map = RouterMap::new();
         for conf in config.configs {
             info!("building {}", conf.server_name);
-            if !rule_map.contains_key(&conf.listen_port) {
-                rule_map.insert(conf.listen_port, vec![]);
+            for listen_port in conf.listen_port.iter() {
+                if !rule_map.contains_key(listen_port) {
+                    rule_map.insert(*listen_port, vec![]);
+                }
+                let mut cloned = conf.clone();
+                cloned.listen_port = vec![*listen_port];
+                rule_map
+                    .entry(*listen_port)
+                    .and_modify(|conf_vec| conf_vec.push(cloned));
             }
-            rule_map
-                .entry(conf.listen_port)
-                .and_modify(|conf_vec| conf_vec.push(conf.clone()));
         }
         Self { map: rule_map }
     }

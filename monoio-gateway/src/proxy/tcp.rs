@@ -70,7 +70,7 @@ impl TcpProxy {
 
     #[inline]
     pub async fn inbound_addr(&self) -> Result<TcpAddress, GError> {
-        let addr = format!("0.0.0.0:{}", self.config.listen_port);
+        let addr = format!("0.0.0.0:{}", self.config.listen_port.first().unwrap());
         Ok(TcpAddress::new(
             SocketAddr::from_str(&addr).expect(&format!("addr {} is not valid", addr)),
         ))

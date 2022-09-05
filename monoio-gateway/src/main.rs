@@ -3,9 +3,9 @@
 
 use anyhow::{bail, Result};
 use clap::Parser;
-use log::info;
+
 use monoio_gateway::{
-    gateway::{GatewayAgent, GatewayAgentable},
+    gateway::{Gateway, Gatewayable, Servable},
     init_env,
 };
 use monoio_gateway_core::{
@@ -14,7 +14,7 @@ use monoio_gateway_core::{
     http::router::{Router, RouterConfig, RoutersConfig},
     print_logo, Builder,
 };
-use monoio_http::ParamRef;
+
 use serde::de::DeserializeOwned;
 
 pub mod gateway;
@@ -38,25 +38,8 @@ async fn main() -> Result<()> {
     // build runtime
     let router = Router::build_with_config(configs);
     // start service
-    let m = router.param_ref();
-    info!("starting {} services", m.len());
-    let mut handles = vec![];
-    for (port, v) in m {
-        info!("port: {}, gateway payload count: {}", port, v.len());
-        let config_vec = v.clone();
-        handles.push(monoio::spawn(async move {
-            let mut agent = GatewayAgent::<Domain>::build(&(config_vec.to_owned()));
-            agent.serve().await
-        }));
-    }
-    for handle in handles {
-        match handle.await {
-            Err(err) => {
-                log::error!("{}", err);
-            }
-            _ => {}
-        }
-    }
+    let gws = Gateway::from_router(router);
+    let _ = gws.serve().await;
     Ok(())
 }
 

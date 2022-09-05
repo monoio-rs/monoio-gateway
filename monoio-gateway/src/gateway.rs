@@ -1,13 +1,13 @@
 use std::future::Future;
 
-use anyhow::bail;
 use log::info;
 use monoio_gateway_core::{
     config::{Config, InBoundConfig, OutBoundConfig},
-    dns::{http::Domain, tcp::TcpAddress},
+    dns::{http::Domain, tcp::TcpAddress, Resolvable},
     error::GError,
-    http::router::RouterConfig,
+    http::router::{Router, RouterConfig},
 };
+use monoio_http::ParamRef;
 
 use crate::proxy::{h1::HttpProxy, tcp::TcpProxy, Proxy};
 
@@ -21,6 +21,8 @@ pub trait Gatewayable<Addr> {
         Self: 'cx;
 
     fn new(config: Vec<RouterConfig<Addr>>) -> Self;
+
+    fn from_router(router: Router<Addr>) -> Vec<Gateway<Addr>>;
 
     fn serve(&self) -> Self::GatewayFuture<'_>;
 }
@@ -43,6 +45,21 @@ impl Gatewayable<TcpAddress> for Gateway<TcpAddress> {
             proxy.io_loop().await
         }
     }
+
+    fn from_router(router: Router<TcpAddress>) -> Vec<Gateway<TcpAddress>>
+    where
+        Self: Sized,
+    {
+        let m = router.param_ref();
+        info!("starting {} services", m.len());
+        let mut agent_vec = vec![];
+        for (port, v) in m {
+            info!("port: {}, gateway payload count: {}", port, v.len());
+            let config_vec = v.clone();
+            agent_vec.push(Gateway::new(config_vec));
+        }
+        agent_vec
+    }
 }
 
 impl Gatewayable<Domain> for Gateway<Domain> {
@@ -58,85 +75,17 @@ impl Gatewayable<Domain> for Gateway<Domain> {
             proxy.io_loop().await
         }
     }
-}
 
-pub trait GatewayAgentable {
-    type Config;
-    type Future<'cx>: Future<Output = Result<(), GError>>
-    where
-        Self: 'cx;
-
-    fn build(config: &Self::Config) -> Self;
-
-    fn serve(&mut self) -> Self::Future<'_>;
-}
-
-impl GatewayAgentable for GatewayAgent<TcpAddress> {
-    type Config = Vec<RouterConfig<TcpAddress>>;
-
-    type Future<'g> = impl Future<Output = Result<(), anyhow::Error>>
-    where
-        Self: 'g;
-
-    fn build(config: &Self::Config) -> Self {
-        GatewayAgent {
-            config: config.clone(),
+    fn from_router(router: Router<Domain>) -> Vec<Gateway<Domain>> {
+        let m = router.param_ref();
+        info!("starting {} services", m.len());
+        let mut agent_vec = vec![];
+        for (port, v) in m {
+            info!("port: {}, gateway payload count: {}", port, v.len());
+            let config_vec = v.clone();
+            agent_vec.push(Gateway::new(config_vec));
         }
-    }
-
-    fn serve(&'_ mut self) -> Self::Future<'_> {
-        async {
-            // let mut handlers = vec![];
-            // for gw in self.gateways.iter_mut() {
-            //     let clone = gw.clone();
-            //     let f = monoio::spawn(async move {
-            //         match clone.serve().await {
-            //             Ok(()) => {}
-            //             Err(err) => eprintln!("Error: {}", err),
-            //         }
-            //     });
-            //     handlers.push(f);
-            // }
-            // for handle in handlers {
-            //     let _ = handle.await;
-            // }
-            Ok(())
-        }
-    }
-}
-
-impl GatewayAgentable for GatewayAgent<Domain> {
-    type Config = Vec<RouterConfig<Domain>>;
-
-    type Future<'cx> = impl Future<Output = Result<(), GError>>
-    where
-        Self: 'cx;
-
-    fn build(config: &Self::Config) -> Self {
-        assert!(
-            !config.is_empty(),
-            "config cannot be empty during building Gateway"
-        );
-        GatewayAgent {
-            config: config.clone(),
-        }
-    }
-
-    fn serve(&mut self) -> Self::Future<'_> {
-        async {
-            info!(
-                "start serving at port {}",
-                self.config.first().unwrap().listen_port
-            );
-            let proxy = HttpProxy::build_with_config(&self.config);
-            match proxy.io_loop().await {
-                Err(err) => {
-                    bail!("{}", err);
-                }
-                _ => {}
-            }
-            Ok(())
-        }
+        agent_vec
     }
 }
 
@@ -148,3 +97,43 @@ pub type HttpOutBoundConfig = OutBoundConfig<Domain>;
 
 pub type TcpConfig = Config<TcpAddress>;
 pub type HttpConfig = Config<Domain>;
+
+pub trait Servable {
+    type Future<'a>: Future<Output = Result<(), GError>>
+    where
+        Self: 'a;
+
+    fn serve(&self) -> Self::Future<'_>;
+}
+
+impl<A> Servable for Vec<Gateway<A>>
+where
+    A: Resolvable + 'static,
+    Gateway<A>: Gatewayable<A>,
+{
+    type Future<'a> = impl Future<Output = Result<(), GError>>
+     where Self: 'a;
+
+    fn serve(&self) -> Self::Future<'_> {
+        async {
+            let mut handler_vec = vec![];
+            for gw in self.iter() {
+                let cloned = gw.clone();
+                let handler = monoio::spawn(async move {
+                    match cloned.serve().await {
+                        Ok(_) => {}
+                        Err(err) => {
+                            log::error!("Gateway Error: {}", err);
+                        }
+                    }
+                });
+                handler_vec.push(handler);
+            }
+            // wait to exit
+            for handle in handler_vec.into_iter() {
+                handle.await;
+            }
+            Ok(())
+        }
+    }
+}
