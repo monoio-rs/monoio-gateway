@@ -1,4 +1,4 @@
-use std::{fmt::Display, future::Future, net::SocketAddr, rc::Rc};
+use std::{future::Future, net::SocketAddr, rc::Rc};
 
 use anyhow::bail;
 use log::info;
@@ -8,19 +8,13 @@ use monoio_gateway_core::{
     service::{Layer, Service},
 };
 
-#[derive(Clone)]
-pub struct TcpAcceptService<T> {
-    inner: T,
-}
+#[derive(Default, Clone)]
+pub struct TcpAcceptService;
 
 pub type Accept<S> = (S, SocketAddr);
 
-impl<T> Service<Rc<TcpListener>> for TcpAcceptService<T>
-where
-    T: Service<Accept<TcpStream>>,
-    T::Error: Display,
-{
-    type Response = T::Response;
+impl Service<Rc<TcpListener>> for TcpAcceptService {
+    type Response = Accept<TcpStream>;
 
     type Error = GError;
 
@@ -30,15 +24,11 @@ where
 
     fn call(&mut self, listener: Rc<TcpListener>) -> Self::Future<'_> {
         async move {
+            log::debug!("📈 new accept avaliable, waiting");
             match listener.accept().await {
                 Ok(accept) => {
                     info!("accept a connection");
-                    match self.inner.call(accept).await {
-                        Err(err) => {
-                            bail!("Error: {}", err);
-                        }
-                        Ok(resp) => return Ok(resp),
-                    }
+                    return Ok(accept);
                 }
                 Err(err) => bail!("{}", err),
             }
@@ -50,9 +40,9 @@ where
 pub struct TcpAcceptLayer {}
 
 impl<S> Layer<S> for TcpAcceptLayer {
-    type Service = TcpAcceptService<S>;
+    type Service = TcpAcceptService;
 
-    fn layer(&self, service: S) -> Self::Service {
-        TcpAcceptService { inner: service }
+    fn layer(&self, _service: S) -> Self::Service {
+        TcpAcceptService {}
     }
 }

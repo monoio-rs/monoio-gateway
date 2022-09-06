@@ -1,14 +1,15 @@
 use std::future::Future;
 
-use log::info;
+use log::{debug, info};
 use monoio::{
     io::{sink::SinkExt, AsyncReadRent, AsyncWriteRent, OwnedReadHalf, OwnedWriteHalf, Splitable},
     net::TcpStream,
 };
 use monoio_gateway_core::{
+    dns::{http::Domain, Resolvable},
     error::GError,
     service::Service,
-    transfer::{copy_data, copy_stream_sink},
+    transfer::{copy_data, copy_request, copy_response},
 };
 use monoio_http::{
     common::request::Request,
@@ -26,16 +27,22 @@ pub struct TcpTransferService;
 
 pub type TcpTransferParams = (TcpStream, TcpStream);
 
-pub struct TransferParams<L: AsyncWriteRent + AsyncReadRent, R: AsyncWriteRent + AsyncReadRent> {
-    local: TransferParamsType<L>,  // client
-    remote: TransferParamsType<R>, // server
-    local_req: Option<Request>,
+pub struct TransferParams<
+    L: AsyncWriteRent + AsyncReadRent,
+    R: AsyncWriteRent + AsyncReadRent,
+    A: Resolvable,
+> {
+    local: TransferParamsType<A, L>,  // client
+    remote: TransferParamsType<A, R>, // server
+    pub(crate) local_req: Option<Request>,
 }
 
-impl<L: AsyncWriteRent + AsyncReadRent, R: AsyncWriteRent + AsyncReadRent> TransferParams<L, R> {
+impl<L: AsyncWriteRent + AsyncReadRent, R: AsyncWriteRent + AsyncReadRent, A: Resolvable>
+    TransferParams<L, R, A>
+{
     pub fn new(
-        local: TransferParamsType<L>,
-        remote: TransferParamsType<R>,
+        local: TransferParamsType<A, L>,
+        remote: TransferParamsType<A, R>,
         local_req: Option<Request>,
     ) -> Self {
         Self {
@@ -46,26 +53,30 @@ impl<L: AsyncWriteRent + AsyncReadRent, R: AsyncWriteRent + AsyncReadRent> Trans
     }
 }
 
-pub enum TransferParamsType<S>
+pub enum TransferParamsType<A, S>
 where
     S: AsyncWriteRent,
 {
     ServerTls(
         GenericEncoder<monoio_rustls::ServerTlsStreamWriteHalf<S>>,
         RequestDecoder<monoio_rustls::ServerTlsStreamReadHalf<S>>,
+        A,
     ),
     ClientTls(
         GenericEncoder<monoio_rustls::ClientTlsStreamWriteHalf<S>>,
         ResponseDecoder<monoio_rustls::ClientTlsStreamReadHalf<S>>,
+        A,
     ),
 
     ServerHttp(
         GenericEncoder<OwnedWriteHalf<S>>,
         RequestDecoder<OwnedReadHalf<S>>,
+        A,
     ),
     ClientHttp(
         GenericEncoder<OwnedWriteHalf<S>>,
         ResponseDecoder<OwnedReadHalf<S>>,
+        A,
     ),
 }
 
@@ -94,7 +105,7 @@ impl Service<TcpTransferParams> for TcpTransferService {
     }
 }
 
-impl<L, R> Service<TransferParams<L, R>> for HttpTransferService
+impl<L, R> Service<TransferParams<L, R, Domain>> for HttpTransferService
 where
     L: AsyncWriteRent + AsyncReadRent,
     R: AsyncWriteRent + AsyncReadRent,
@@ -107,54 +118,55 @@ where
     where
         Self: 'cx;
 
-    fn call(&mut self, req: TransferParams<L, R>) -> Self::Future<'_> {
+    fn call(&mut self, req: TransferParams<L, R, Domain>) -> Self::Future<'_> {
         async {
             info!("transfering data");
             match req.local {
-                TransferParamsType::ServerTls(mut lw, mut lr) => match req.remote {
-                    TransferParamsType::ClientTls(mut rw, mut rr) => {
+                TransferParamsType::ServerTls(mut lw, mut lr, local) => match req.remote {
+                    TransferParamsType::ClientTls(mut rw, mut rr, remote) => {
                         if let Some(request) = req.local_req {
                             rw.send_and_flush(request).await?;
                         }
                         let _ = monoio::join!(
-                            copy_stream_sink(&mut lr, &mut rw),
-                            copy_stream_sink(&mut rr, &mut lw)
+                            copy_request(&mut lr, &mut rw, &remote),
+                            copy_response(&mut rr, &mut lw, &local)
                         );
                     }
-                    TransferParamsType::ClientHttp(mut rw, mut rr) => {
+                    TransferParamsType::ClientHttp(mut rw, mut rr, remote) => {
                         if let Some(request) = req.local_req {
                             rw.send_and_flush(request).await?;
                         }
                         let _ = monoio::join!(
-                            copy_stream_sink(&mut lr, &mut rw),
-                            copy_stream_sink(&mut rr, &mut lw)
+                            copy_request(&mut lr, &mut rw, &remote),
+                            copy_response(&mut rr, &mut lw, &local)
                         );
                     }
                     _ => {}
                 },
-                TransferParamsType::ServerHttp(mut lw, mut lr) => match req.remote {
-                    TransferParamsType::ClientTls(mut rw, mut rr) => {
+                TransferParamsType::ServerHttp(mut lw, mut lr, local) => match req.remote {
+                    TransferParamsType::ClientTls(mut rw, mut rr, remote) => {
                         if let Some(request) = req.local_req {
                             rw.send_and_flush(request).await?;
                         }
                         let _ = monoio::join!(
-                            copy_stream_sink(&mut lr, &mut rw),
-                            copy_stream_sink(&mut rr, &mut lw)
+                            copy_request(&mut lr, &mut rw, &remote),
+                            copy_response(&mut rr, &mut lw, &local)
                         );
                     }
-                    TransferParamsType::ClientHttp(mut rw, mut rr) => {
+                    TransferParamsType::ClientHttp(mut rw, mut rr, remote) => {
                         if let Some(request) = req.local_req {
                             rw.send_and_flush(request).await?;
                         }
                         let _ = monoio::join!(
-                            copy_stream_sink(&mut lr, &mut rw),
-                            copy_stream_sink(&mut rr, &mut lw)
+                            copy_request(&mut lr, &mut rw, &remote),
+                            copy_response(&mut rr, &mut lw, &local)
                         );
                     }
                     _ => {}
                 },
                 _ => {}
             }
+            debug!("complete connection");
             Ok(())
         }
     }

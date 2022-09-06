@@ -1,4 +1,3 @@
-use log::info;
 use monoio::{
     io::{
         sink::Sink, stream::Stream, AsyncReadRent, AsyncWriteRent, AsyncWriteRentExt,
@@ -7,9 +6,14 @@ use monoio::{
     net::TcpStream,
 };
 use monoio_http::{
-    common::IntoParts,
-    h1::codec::decoder::{DecodeError, FillPayload},
+    common::{request::Request, response::Response, IntoParts},
+    h1::{
+        codec::decoder::{DecodeError, FillPayload},
+        payload::Payload,
+    },
 };
+
+use crate::{dns::http::Domain, http::Rewrite};
 
 pub type TcpPrefixedIo = PrefixedReadIo<TcpStream, Vec<u8>>;
 
@@ -46,17 +50,81 @@ where
     loop {
         match local.next().await {
             Some(Ok(data)) => {
-                info!("sending data");
+                log::debug!("sending data");
                 let _ = local.fill_payload().await;
                 let _ = remote.send(data).await;
                 let _ = monoio::io::sink::Sink::flush(remote).await;
-                info!("data sent");
+                log::debug!("data sent");
             }
             Some(Err(decode_error)) => {
-                eprintln!("{}", decode_error);
+                log::warn!("{}", decode_error);
             }
             None => {
-                info!("reached EOF");
+                log::info!("reached EOF, bye");
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub async fn copy_request<Read, Write>(
+    local: &mut Read,
+    remote: &mut Write,
+    domain: &Domain,
+) -> Result<(), std::io::Error>
+where
+    Read: Stream<Item = Result<Request<Payload>, DecodeError>> + FillPayload,
+    Write: Sink<Request<Payload>>,
+{
+    loop {
+        match local.next().await {
+            Some(Ok(request)) => {
+                let mut request: Request = request;
+                log::debug!("sending request");
+                Rewrite::rewrite_request(&mut request, domain);
+                let _ = local.fill_payload().await;
+                let _ = remote.send(request).await;
+                let _ = monoio::io::sink::Sink::flush(remote).await;
+                log::debug!("request sent");
+            }
+            Some(Err(decode_error)) => {
+                log::warn!("{}", decode_error);
+            }
+            None => {
+                log::info!("forward reached EOF, bye");
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub async fn copy_response<Read, Write>(
+    local: &mut Read,
+    remote: &mut Write,
+    domain: &Domain,
+) -> Result<(), std::io::Error>
+where
+    Read: Stream<Item = Result<Response<Payload>, DecodeError>> + FillPayload,
+    Write: Sink<Response<Payload>>,
+{
+    loop {
+        match local.next().await {
+            Some(Ok(response)) => {
+                let mut response: Response = response;
+                log::debug!("sending response");
+                Rewrite::rewrite_response(&mut response, domain);
+                let _ = local.fill_payload().await;
+                let _ = remote.send(response).await;
+                let _ = monoio::io::sink::Sink::flush(remote).await;
+                log::debug!("response sent");
+            }
+            Some(Err(decode_error)) => {
+                log::warn!("{}", decode_error);
+            }
+            None => {
+                log::info!("backward reached EOF, bye");
                 break;
             }
         }

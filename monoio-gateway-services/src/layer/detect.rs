@@ -43,7 +43,7 @@ where
             // for lint
             let buf: Vec<u8> = buf;
             let sz = sz?;
-            if sz == 0 {
+            if sz < 3 {
                 return Ok(None);
             }
             let ssl_record_type: u8 = buf[0];

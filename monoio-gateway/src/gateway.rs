@@ -11,10 +11,6 @@ use monoio_http::ParamRef;
 
 use crate::proxy::{h1::HttpProxy, tcp::TcpProxy, Proxy};
 
-pub struct GatewayAgent<Addr> {
-    config: Vec<RouterConfig<Addr>>,
-}
-
 pub trait Gatewayable<Addr> {
     type GatewayFuture<'cx>: Future<Output = Result<(), GError>>
     where

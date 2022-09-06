@@ -7,19 +7,13 @@
         {
           "path": "/",
           "proxy_pass": {
-            "uri": "http://127.0.0.1:8000"
+            "uri": "https://file.kingtous.cn"
           }
         },
         {
-          "path": "/test1",
+          "path": "/docs",
           "proxy_pass": {
-            "uri": "http://127.0.0.1:8000"
-          }
-        },
-        {
-          "path": "/test2",
-          "proxy_pass": {
-            "uri": "http://127.0.0.1:8001"
+            "uri": "http://captive.apple.com"
           }
         }
       ],

@@ -21,15 +21,15 @@ use rustls::ServerName;
 
 use super::transfer::{TransferParams, TransferParamsType};
 
-pub struct EndpointRequestParams<EndPoint, S: AsyncWriteRent> {
-    local: TransferParamsType<S>,
-    local_req: Option<Request>,
-    endpoint: EndPoint,
+pub struct EndpointRequestParams<A, EndPoint, S: AsyncWriteRent> {
+    local: TransferParamsType<A, S>,
+    pub(crate) local_req: Option<Request>,
+    pub(crate) endpoint: EndPoint,
 }
 
-impl<Endpoint, S: AsyncWriteRent> EndpointRequestParams<Endpoint, S> {
+impl<A, Endpoint, S: AsyncWriteRent> EndpointRequestParams<A, Endpoint, S> {
     pub fn new(
-        local: TransferParamsType<S>,
+        local: TransferParamsType<A, S>,
         endpoint: Endpoint,
         local_req: Option<Request>,
     ) -> Self {
@@ -46,9 +46,9 @@ pub struct ConnectEndpoint<T> {
     inner: T,
 }
 
-impl<T, S> Service<EndpointRequestParams<Domain, S>> for ConnectEndpoint<T>
+impl<T, S> Service<EndpointRequestParams<Domain, Domain, S>> for ConnectEndpoint<T>
 where
-    T: Service<TransferParams<S, TcpStream>>,
+    T: Service<TransferParams<S, TcpStream, Domain>>,
     S: Split + AsyncWriteRent + AsyncReadRent,
 {
     type Response = Option<T::Response>;
@@ -59,7 +59,7 @@ where
     where
         Self: 'cx;
 
-    fn call(&mut self, req: EndpointRequestParams<Domain, S>) -> Self::Future<'_> {
+    fn call(&mut self, req: EndpointRequestParams<Domain, Domain, S>) -> Self::Future<'_> {
         async move {
             info!("trying to connect to endpoint");
             let resolved = req.endpoint.resolve().await?;
@@ -78,7 +78,11 @@ where
                                     .inner
                                     .call(TransferParams::new(
                                         req.local,
-                                        TransferParamsType::ClientHttp(rw_encoder, rr_decoder),
+                                        TransferParamsType::ClientHttp(
+                                            rw_encoder,
+                                            rr_decoder,
+                                            req.endpoint,
+                                        ),
                                         req.local_req,
                                     ))
                                     .await
@@ -102,7 +106,9 @@ where
                                             .call(TransferParams::new(
                                                 req.local,
                                                 TransferParamsType::ClientTls(
-                                                    rw_encoder, rr_decoder,
+                                                    rw_encoder,
+                                                    rr_decoder,
+                                                    req.endpoint,
                                                 ),
                                                 req.local_req,
                                             ))

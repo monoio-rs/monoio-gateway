@@ -1,4 +1,4 @@
-use std::{collections::HashMap, future::Future, path::Path, rc::Rc};
+use std::{collections::HashMap, future::Future, path::Path, sync::Arc};
 
 use anyhow::bail;
 
@@ -30,13 +30,13 @@ use super::{
 #[derive(Clone)]
 pub struct RouterService<T, A> {
     inner: T,
-    routes: Rc<HashMap<String, RouterConfig<A>>>,
+    routes: Arc<HashMap<String, RouterConfig<A>>>,
 }
 
 /// Direct use router before Accept
 impl<T, S> Service<Accept<S>> for RouterService<T, Domain>
 where
-    T: Service<EndpointRequestParams<Domain, S>>,
+    T: Service<EndpointRequestParams<Domain, Domain, S>>,
     S: Split + AsyncWriteRent + AsyncReadRent,
 {
     type Response = Option<T::Response>;
@@ -73,6 +73,7 @@ where
                                                 TransferParamsType::ServerHttp(
                                                     local_encoder,
                                                     local_decoder,
+                                                    domain,
                                                 ),
                                                 proxy_pass.clone(),
                                                 Some(req),
@@ -126,7 +127,7 @@ where
 /// Direct use router before Accept
 impl<T, S> Service<TlsAccept<S>> for RouterService<T, Domain>
 where
-    T: Service<EndpointRequestParams<Domain, S>>,
+    T: Service<EndpointRequestParams<Domain, Domain, S>>,
     S: Split + AsyncWriteRent + AsyncReadRent,
 {
     type Response = Option<T::Response>;
@@ -163,6 +164,7 @@ where
                                                 TransferParamsType::ServerTls(
                                                     local_encoder,
                                                     local_decoder,
+                                                    domain,
                                                 ),
                                                 proxy_pass.clone(),
                                                 Some(req),
@@ -208,7 +210,7 @@ where
 /// Support detect result
 impl<T, S> Service<DetectResult<S>> for RouterService<T, Domain>
 where
-    T: Service<EndpointRequestParams<Domain, S>>,
+    T: Service<EndpointRequestParams<Domain, Domain, S>>,
     S: Split + AsyncReadRent + AsyncWriteRent,
 {
     type Response = Option<T::Response>;
@@ -246,6 +248,7 @@ where
                                                 TransferParamsType::ServerHttp(
                                                     local_encoder,
                                                     local_decoder,
+                                                    domain,
                                                 ),
                                                 proxy_pass.clone(),
                                                 Some(req),
@@ -363,11 +366,11 @@ where
 }
 
 pub struct RouterLayer<A> {
-    routes: Rc<HashMap<String, RouterConfig<A>>>,
+    routes: Arc<HashMap<String, RouterConfig<A>>>,
 }
 
 impl<A> RouterLayer<A> {
-    pub fn new(routes: Rc<HashMap<String, RouterConfig<A>>>) -> Self {
+    pub fn new(routes: Arc<HashMap<String, RouterConfig<A>>>) -> Self {
         Self { routes }
     }
 }

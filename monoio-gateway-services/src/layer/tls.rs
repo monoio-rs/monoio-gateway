@@ -74,7 +74,7 @@ where
                         bail!("{}", err)
                     }
                 },
-                Err(err) => bail!("tls error: {}", err),
+                Err(err) => bail!("tls error: {:?}", err),
             }
         }
     }
