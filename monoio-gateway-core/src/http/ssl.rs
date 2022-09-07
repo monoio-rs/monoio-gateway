@@ -85,7 +85,7 @@ where
     R: std::io::Read,
 {
     let mut reader = BufReader::new(read);
-    let mut pems = rustls_pemfile::rsa_private_keys(&mut reader)?;
+    let mut pems = rustls_pemfile::pkcs8_private_keys(&mut reader)?;
     if pems.is_empty() {
         bail!("no private key read");
     }
