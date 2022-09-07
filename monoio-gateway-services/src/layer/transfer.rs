@@ -1,6 +1,6 @@
 use std::future::Future;
 
-use log::{debug, info};
+use log::info;
 use monoio::{
     io::{sink::SinkExt, AsyncReadRent, AsyncWriteRent, OwnedReadHalf, OwnedWriteHalf, Splitable},
     net::TcpStream,
@@ -127,19 +127,27 @@ where
                         if let Some(request) = req.local_req {
                             rw.send_and_flush(request).await?;
                         }
-                        let _ = monoio::join!(
-                            copy_request(&mut lr, &mut rw, &remote),
-                            copy_response(&mut rr, &mut lw, &local)
-                        );
+                        monoio::select! {
+                            _ = copy_request(&mut lr, &mut rw, &remote) => {
+                                return Ok(());
+                            }
+                            _ = copy_response(&mut rr, &mut lw, &local) => {
+                                return Ok(());
+                            }
+                        }
                     }
                     TransferParamsType::ClientHttp(mut rw, mut rr, remote) => {
                         if let Some(request) = req.local_req {
                             rw.send_and_flush(request).await?;
                         }
-                        let _ = monoio::join!(
-                            copy_request(&mut lr, &mut rw, &remote),
-                            copy_response(&mut rr, &mut lw, &local)
-                        );
+                        monoio::select! {
+                            _ = copy_request(&mut lr, &mut rw, &remote) => {
+                                return Ok(());
+                            }
+                            _ = copy_response(&mut rr, &mut lw, &local) => {
+                                return Ok(());
+                            }
+                        }
                     }
                     _ => {}
                 },
@@ -148,25 +156,32 @@ where
                         if let Some(request) = req.local_req {
                             rw.send_and_flush(request).await?;
                         }
-                        let _ = monoio::join!(
-                            copy_request(&mut lr, &mut rw, &remote),
-                            copy_response(&mut rr, &mut lw, &local)
-                        );
+                        monoio::select! {
+                            _ = copy_request(&mut lr, &mut rw, &remote) => {
+                                return Ok(());
+                            }
+                            _ = copy_response(&mut rr, &mut lw, &local) => {
+                                return Ok(());
+                            }
+                        }
                     }
                     TransferParamsType::ClientHttp(mut rw, mut rr, remote) => {
                         if let Some(request) = req.local_req {
                             rw.send_and_flush(request).await?;
                         }
-                        let _ = monoio::join!(
-                            copy_request(&mut lr, &mut rw, &remote),
-                            copy_response(&mut rr, &mut lw, &local)
-                        );
+                        monoio::select! {
+                            _ = copy_request(&mut lr, &mut rw, &remote) => {
+                                return Ok(());
+                            }
+                            _ = copy_response(&mut rr, &mut lw, &local) => {
+                                return Ok(());
+                            }
+                        }
                     }
                     _ => {}
                 },
                 _ => {}
             }
-            debug!("complete connection");
             Ok(())
         }
     }

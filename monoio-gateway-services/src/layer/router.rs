@@ -1,4 +1,4 @@
-use std::{collections::HashMap, future::Future, path::Path, sync::Arc};
+use std::{collections::HashMap, future::Future, path::Path, rc::Rc};
 
 use anyhow::bail;
 
@@ -30,7 +30,7 @@ use super::{
 #[derive(Clone)]
 pub struct RouterService<T, A> {
     inner: T,
-    routes: Arc<HashMap<String, RouterConfig<A>>>,
+    routes: Rc<HashMap<String, RouterConfig<A>>>,
 }
 
 /// Direct use router before Accept
@@ -366,11 +366,11 @@ where
 }
 
 pub struct RouterLayer<A> {
-    routes: Arc<HashMap<String, RouterConfig<A>>>,
+    routes: Rc<HashMap<String, RouterConfig<A>>>,
 }
 
 impl<A> RouterLayer<A> {
-    pub fn new(routes: Arc<HashMap<String, RouterConfig<A>>>) -> Self {
+    pub fn new(routes: Rc<HashMap<String, RouterConfig<A>>>) -> Self {
         Self { routes }
     }
 }

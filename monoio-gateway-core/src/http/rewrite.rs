@@ -16,26 +16,32 @@ impl Rewrite {
             // ignore rewrite
             return;
         }
-        request.headers_mut().insert(
-            http::header::HOST,
-            HeaderValue::from_str(authority.unwrap().as_str())
-                .unwrap_or(HeaderValue::from_static("")),
+        let new_header = HeaderValue::from_str(authority.unwrap().as_str())
+            .unwrap_or(HeaderValue::from_static(""));
+        log::debug!(
+            "Request: {:?} -> {:?}",
+            request.headers().get(http::header::HOST),
+            new_header
         );
-        log::debug!("request rewrite success");
+        request.headers_mut().insert(http::header::HOST, new_header);
     }
 
     #[inline]
     pub fn rewrite_response(response: &mut Response<Payload>, local: &Domain) {
         let authority = local.authority();
-        if authority.is_none() {
+        if authority.is_none() || response.headers().get(http::header::HOST).is_none() {
             // ignore rewrite
             return;
         }
-        response.headers_mut().insert(
-            http::header::HOST,
-            HeaderValue::from_str(authority.unwrap().as_str())
-                .unwrap_or(HeaderValue::from_static("")),
+        let new_header = HeaderValue::from_str(authority.unwrap().as_str())
+            .unwrap_or(HeaderValue::from_static(""));
+        log::debug!(
+            "Response: {:?} <- {:?}",
+            new_header,
+            response.headers().get(http::header::HOST)
         );
-        log::debug!("response rewrite success");
+        response
+            .headers_mut()
+            .insert(http::header::HOST, new_header);
     }
 }

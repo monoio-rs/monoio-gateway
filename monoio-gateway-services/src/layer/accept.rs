@@ -24,7 +24,6 @@ impl Service<Rc<TcpListener>> for TcpAcceptService {
 
     fn call(&mut self, listener: Rc<TcpListener>) -> Self::Future<'_> {
         async move {
-            log::debug!("📈 new accept avaliable, waiting");
             match listener.accept().await {
                 Ok(accept) => {
                     info!("accept a connection");

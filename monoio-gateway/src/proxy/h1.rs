@@ -4,7 +4,6 @@ use std::io::Cursor;
 use std::path::Path;
 use std::rc::Rc;
 
-use std::sync::Arc;
 use std::thread;
 
 use anyhow::bail;
@@ -46,7 +45,7 @@ impl Proxy for HttpProxy {
             for route in self.config.iter() {
                 route_map.insert(route.server_name.to_owned(), route.to_owned());
             }
-            let route_wrapper = Arc::new(route_map);
+            let route_wrapper = Rc::new(route_map);
             let listen_addr = format!("0.0.0.0:{}", self.get_listen_port().unwrap());
             let listener = TcpListener::bind_with_config(listen_addr, &ListenerConfig::default());
             if let Err(e) = listener {
@@ -56,6 +55,10 @@ impl Proxy for HttpProxy {
             let listener_wrapper = Rc::new(listener);
             let mut svc = ServiceBuilder::default().service(TcpAcceptService::default());
             loop {
+                log::info!(
+                    "📈 new accept avaliable for {:?}, waiting",
+                    self.get_listen_port()
+                );
                 let route_cloned = route_wrapper.clone();
                 match svc.call(listener_wrapper.clone()).await {
                     Ok(accept) => {
@@ -76,7 +79,9 @@ impl Proxy for HttpProxy {
                                                     .layer(ConnectEndpointLayer::new())
                                                     .service(HttpTransferService::default());
                                                 match handler.call(acc).await {
-                                                    Ok(_) => {}
+                                                    Ok(_) => {
+                                                        info!("✔ complete connection");
+                                                    }
                                                     Err(e) => {
                                                         log::error!("{}", e);
                                                     }
@@ -91,7 +96,9 @@ impl Proxy for HttpProxy {
                                                     .layer(ConnectEndpointLayer::new())
                                                     .service(HttpTransferService::default());
                                                 match handler.call(acc).await {
-                                                    Ok(_) => {}
+                                                    Ok(_) => {
+                                                        info!("✔ complete connection");
+                                                    }
                                                     Err(e) => {
                                                         log::error!("{}", e);
                                                     }
@@ -176,7 +183,7 @@ fn configure_acme(config: &Vec<RouterConfig<Domain>>) {
             let server_name = conf.server_name.to_owned();
             let mail = tls.mail.to_owned();
             thread::spawn(move || {
-                monoio::start::<monoio::LegacyDriver, _>(async move {
+                monoio::start::<monoio::IoUringDriver, _>(async move {
                     info!(
                         "{} is requesting certificate using email {}",
                         server_name, mail

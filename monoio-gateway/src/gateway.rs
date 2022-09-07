@@ -1,6 +1,7 @@
-use std::future::Future;
+use std::{future::Future, thread};
 
 use log::info;
+use monoio::RuntimeBuilder;
 use monoio_gateway_core::{
     config::{Config, InBoundConfig, OutBoundConfig},
     dns::{http::Domain, tcp::TcpAddress, Resolvable},
@@ -68,7 +69,8 @@ impl Gatewayable<Domain> for Gateway<Domain> {
     fn serve<'cx>(&self) -> Self::GatewayFuture<'_> {
         async move {
             let proxy = HttpProxy::build_with_config(&self.config);
-            proxy.io_loop().await
+            proxy.io_loop().await?;
+            Ok(())
         }
     }
 
@@ -104,7 +106,7 @@ pub trait Servable {
 
 impl<A> Servable for Vec<Gateway<A>>
 where
-    A: Resolvable + 'static,
+    A: Resolvable + Send + 'static,
     Gateway<A>: Gatewayable<A>,
 {
     type Future<'a> = impl Future<Output = Result<(), GError>>
@@ -115,19 +117,26 @@ where
             let mut handler_vec = vec![];
             for gw in self.iter() {
                 let cloned = gw.clone();
-                let handler = monoio::spawn(async move {
-                    match cloned.serve().await {
-                        Ok(_) => {}
-                        Err(err) => {
-                            log::error!("Gateway Error: {}", err);
+                let handler = thread::spawn(move || {
+                    let mut rt = RuntimeBuilder::<monoio::IoUringDriver>::new()
+                        .enable_timer()
+                        .with_entries(32768)
+                        .build()
+                        .unwrap();
+                    rt.block_on(async move {
+                        match cloned.serve().await {
+                            Ok(_) => {}
+                            Err(err) => {
+                                log::error!("Gateway Error: {}", err);
+                            }
                         }
-                    }
+                    });
                 });
                 handler_vec.push(handler);
             }
             // wait to exit
             for handle in handler_vec.into_iter() {
-                handle.await;
+                let _ = handle.join();
             }
             Ok(())
         }

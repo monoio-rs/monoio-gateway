@@ -1,7 +1,9 @@
+use http::header::HOST;
 use monoio::{
     io::{
-        sink::Sink, stream::Stream, AsyncReadRent, AsyncWriteRent, AsyncWriteRentExt,
-        PrefixedReadIo,
+        sink::{Sink, SinkExt},
+        stream::Stream,
+        AsyncReadRent, AsyncWriteRent, AsyncWriteRentExt, PrefixedReadIo,
     },
     net::TcpStream,
 };
@@ -51,9 +53,7 @@ where
         match local.next().await {
             Some(Ok(data)) => {
                 log::debug!("sending data");
-                let _ = local.fill_payload().await;
-                let _ = remote.send(data).await;
-                let _ = monoio::io::sink::Sink::flush(remote).await;
+                let _ = monoio::join!(local.fill_payload(), remote.send_and_flush(data));
                 log::debug!("data sent");
             }
             Some(Err(decode_error)) => {
@@ -81,11 +81,13 @@ where
         match local.next().await {
             Some(Ok(request)) => {
                 let mut request: Request = request;
-                log::debug!("sending request");
                 Rewrite::rewrite_request(&mut request, domain);
-                let _ = local.fill_payload().await;
-                let _ = remote.send(request).await;
-                let _ = monoio::io::sink::Sink::flush(remote).await;
+                log::info!(
+                    "request: {}, host: {:?}",
+                    request.uri(),
+                    request.headers().get(HOST)
+                );
+                let _ = monoio::join!(local.fill_payload(), remote.send_and_flush(request));
                 log::debug!("request sent");
             }
             Some(Err(decode_error)) => {
@@ -113,12 +115,13 @@ where
         match local.next().await {
             Some(Ok(response)) => {
                 let mut response: Response = response;
-                log::debug!("sending response");
                 Rewrite::rewrite_response(&mut response, domain);
-                let _ = local.fill_payload().await;
-                let _ = remote.send(response).await;
-                let _ = monoio::io::sink::Sink::flush(remote).await;
-                log::debug!("response sent");
+                log::info!(
+                    "response code: {},{:?}",
+                    response.status(),
+                    response.headers(),
+                );
+                let _ = monoio::join!(local.fill_payload(), remote.send_and_flush(response));
             }
             Some(Err(decode_error)) => {
                 log::warn!("{}", decode_error);

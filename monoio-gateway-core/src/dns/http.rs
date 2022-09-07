@@ -3,7 +3,6 @@ use std::{
     future::Future,
 };
 
-use anyhow::bail;
 use http::{uri::Authority, Uri};
 use serde::{Deserialize, Serialize};
 
@@ -75,19 +74,7 @@ impl Resolvable for Domain {
         Self: 'a;
 
     fn resolve(&self) -> Self::ResolveFuture<'_> {
-        async {
-            match self.authority() {
-                Some(authority) => Ok(Some(format!(
-                    "{}:{}",
-                    authority.as_str().to_string(),
-                    self.port()
-                ))),
-                None => {
-                    // or return None
-                    bail!("No authority in this domain!")
-                }
-            }
-        }
+        async { Ok(Some(format!("{}:{}", self.host(), self.port()))) }
     }
 }
 
