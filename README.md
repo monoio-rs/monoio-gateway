@@ -21,7 +21,43 @@ monoio-gateway --config path/to/config.json
 
 ## Configuration
 
-a simple gateway configuration is shown below.
+The configuration of `monoio-gateway` is formed by a `json` file. 
+
+### Configuration Option
+
+#### Base
+
+| field       | type      | description                     | required |
+| ----------- | --------- | ------------------------------- | -------- |
+| server_name | String    | server domain                   | true     |
+| listen_port | [u16]     | port to bind, usually [80, 443] | true     |
+| rules       | [Rules]   | proxy pass rules                | true     |
+| tls         | TlsConfig | configuration for tls or acme   | false    |
+
+#### Rules
+
+| field      | type   | description                   | required |
+| ---------- | ------ | ----------------------------- | -------- |
+| path       | String | request path started with '/' | true     |
+| proxy_pass | String | endpoint url                  | true     |
+
+#### TlsConfig
+
+| field       | type   | description                                                           | required |
+| ----------- | ------ | --------------------------------------------------------------------- | -------- |
+| mail        | String | email used to request SSL certificate(acme)                           | false    |
+| chain       | String | pem file chained with root ca and server cert                         | false    |
+| private_key | String | `pkcs8` encoded private key(start with `-----BEGIN PRIVATE KEY-----`) | false    |
+
+Note: If defined `TlsConfig`, which means the server can also be served as `https`. Users should ensure one of the following parameters exist in `TlsConfig`, or `monoio-gateway` will fail to start:
+
+- `mail`
+  - if defined `mail`, the gateway will automatically request acme service (Let's Encrypt) to get a free certificate, download and deploy to runtime if there's no valid certificate. Users should ensure the corresponding dns record is pointed to current server.
+- `chain`, `private_key`
+  - the gateway will use certificates provided in config file, disable acme service for this `server_name`.  `mail` will be ignored and nullable.
+
+### Example
+an example configuration is shown below.
 
 ```json
 {
@@ -51,6 +87,3 @@ a simple gateway configuration is shown below.
 }
 ```
 
-### Configuration Option
-
-To be done.

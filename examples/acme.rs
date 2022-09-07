@@ -25,8 +25,7 @@ async fn main() -> Result<(), GError> {
         tls: Some(TlsConfig {
             mail: mail.to_string(),
             // None to use prebuilt acme support
-            root_ca: None,
-            server_key: None,
+            chain: None,
             private_key: None,
         }),
     };

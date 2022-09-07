@@ -22,8 +22,7 @@ async fn main() -> Result<(), anyhow::Error> {
         }],
         tls: Some(TlsConfig {
             mail: "me@kingtous.cn".into(),
-            root_ca: None,
-            server_key: None,
+            chain: None,
             private_key: None,
         }),
     };

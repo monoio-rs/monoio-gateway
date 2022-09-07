@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::future::Future;
-use std::io::Cursor;
+use std::io::{self, Cursor};
 use std::path::Path;
 use std::rc::Rc;
 
@@ -152,14 +152,21 @@ fn configure_acme(config: &Vec<RouterConfig<Domain>>) {
         }
         info!("acme: load {}", conf.server_name);
         if let Some(tls) = &conf.tls {
-            if tls.private_key.is_some() || tls.root_ca.is_some() || tls.server_key.is_some() {
-                continue;
+            let pem_content: io::Result<Vec<u8>>;
+            let key_content: io::Result<Vec<u8>>;
+            if tls.private_key.is_some() && tls.chain.is_some() {
+                // check config private key
+                (pem_content, key_content) = (
+                    std::fs::read(tls.chain.clone().unwrap()),
+                    std::fs::read(tls.private_key.clone().unwrap()),
+                );
+            } else {
+                // check local ssl
+                let path = conf.server_name.get_acme_path().unwrap();
+                let (pem, key) = (Path::new(&path).join("pem"), Path::new(&path).join("priv"));
+                (pem_content, key_content) =
+                    (std::fs::read(pem.clone()), std::fs::read(key.clone()));
             }
-            // check local ssl
-            let path = conf.server_name.get_acme_path().unwrap();
-            let (pem, key) = (Path::new(&path).join("pem"), Path::new(&path).join("priv"));
-            let (pem_content, key_content) =
-                (std::fs::read(pem.clone()), std::fs::read(key.clone()));
 
             if pem_content.is_ok() && key_content.is_ok() {
                 info!(
