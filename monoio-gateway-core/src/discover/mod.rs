@@ -3,6 +3,7 @@ use std::future::Future;
 use self::change::DiscoverChange;
 
 pub mod change;
+pub mod discover;
 
 /// Service Discover Trait
 pub trait Discover {
