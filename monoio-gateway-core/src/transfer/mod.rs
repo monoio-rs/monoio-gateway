@@ -61,6 +61,7 @@ where
             }
             None => {
                 log::info!("reached EOF, bye");
+                let _ = remote.close().await;
                 break;
             }
         }
@@ -95,6 +96,7 @@ where
             }
             None => {
                 log::info!("forward reached EOF, bye");
+                let _ = remote.close().await;
                 break;
             }
         }
@@ -128,6 +130,7 @@ where
             }
             None => {
                 log::info!("backward reached EOF, bye");
+                let _ = remote.close().await;
                 break;
             }
         }
