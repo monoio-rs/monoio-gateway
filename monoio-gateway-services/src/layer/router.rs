@@ -1,7 +1,6 @@
 use std::{borrow::Borrow, collections::HashMap, future::Future, path::Path, rc::Rc, sync::RwLock};
 
-use anyhow::bail;
-
+use async_channel::Receiver;
 use bytes::Bytes;
 use http::{response::Builder, StatusCode};
 use log::{debug, info};
@@ -41,7 +40,7 @@ use super::{
     tls::TlsAccept,
 };
 
-pub type SharedTcpConnectPool<I, O> = Rc<RwLock<HashMap<Domain, Rc<ClientConnectionType<I, O>>>>>;
+pub type SharedTcpConnectPool<I, O> = Rc<RwLock<HashMap<String, Rc<ClientConnectionType<I, O>>>>>;
 
 pub struct RouterService<A, I, O: AsyncWriteRent> {
     routes: Rc<HashMap<String, RouterConfig<A>>>,
@@ -76,10 +75,11 @@ where
 
     fn call(&mut self, local_stream: Accept<S>) -> Self::Future<'_> {
         async move {
-            let (stream, _socketaddr) = local_stream;
+            let (stream, socketaddr) = local_stream;
             let (local_read, local_write) = stream.into_split();
             let mut local_decoder = RequestDecoder::new(local_read);
             let local_encoder = Rc::new(RwLock::new(GenericEncoder::new(local_write)));
+            let (tx, rx) = async_channel::bounded(1);
             loop {
                 let connect_pool = self.connect_pool.clone();
                 let local_encoder_clone = local_encoder.clone();
@@ -102,6 +102,7 @@ where
                                                 &proxy_pass,
                                                 local_encoder_clone,
                                                 req,
+                                                rx.clone(),
                                             )
                                             .await;
                                             continue;
@@ -149,14 +150,18 @@ where
                     }
                     Some(Err(err)) => {
                         // TODO: fallback to tcp
-                        debug!("detect failed, fallback to tcp");
-                        bail!("{}", err);
+                        log::warn!("{}", err);
+                        break;
                     }
-                    _ => {
+                    None => {
+                        info!("http client {} closed", socketaddr);
                         break;
                     }
                 }
             }
+            // notify disconnect from endpoints
+            rx.close();
+            let _ = tx.send(()).await;
             Ok(())
         }
     }
@@ -179,10 +184,12 @@ where
 
     fn call(&mut self, local_stream: TlsAccept<S>) -> Self::Future<'_> {
         async move {
-            let (stream, _socketaddr, _) = local_stream;
+            let (stream, socketaddr, _) = local_stream;
             let (local_read, local_write) = stream.split();
             let mut local_decoder = RequestDecoder::new(local_read);
             let local_encoder = Rc::new(RwLock::new(GenericEncoder::new(local_write)));
+            // exit notifier
+            let (tx, rx) = async_channel::bounded(1);
             loop {
                 let connect_pool = self.connect_pool.clone();
                 let local_encoder_clone = local_encoder.clone();
@@ -205,6 +212,7 @@ where
                                                 &proxy_pass,
                                                 local_encoder_clone,
                                                 req,
+                                                rx.clone(),
                                             )
                                             .await;
                                             continue;
@@ -251,15 +259,19 @@ where
                         };
                     }
                     Some(Err(err)) => {
-                        // TODO: fallback to tcp
-                        debug!("detect failed, fallback to tcp");
-                        bail!("{}", err);
+                        log::warn!("{}", err);
+                        break;
                     }
-                    _ => {
+                    None => {
+                        info!("https client {} closed", socketaddr);
                         break;
                     }
                 }
             }
+            log::info!("bye {}! Now we remove router", socketaddr);
+            // notify disconnect from endpoints
+            rx.close();
+            let _ = tx.send(()).await;
             Ok(())
         }
     }
@@ -345,7 +357,7 @@ fn longest_match<'cx>(
     req_path: &'cx str,
     routes: &'cx Vec<RouterRule<Domain>>,
 ) -> Option<&'cx RouterRule<Domain>> {
-    info!("request path: {}", req_path);
+    log::info!("request path: {}", req_path);
     // TODO: opt progress
     if req_path.starts_with(ACME_URI_PREFIX) {
         return None;
@@ -378,61 +390,76 @@ async fn handle_endpoint_connection<O>(
     proxy_pass: &Domain,
     encoder: Rc<RwLock<GenericEncoder<O>>>,
     mut request: Request<Payload>,
+    rx: Receiver<()>,
 ) where
     O: AsyncWriteRent + 'static,
 {
-    if !connect_pool.read().unwrap().contains_key(proxy_pass) {
-        log::info!(
-            "{} endpoint connections not exists, try connect now",
-            proxy_pass
-        );
-        // open channel
-        let proxy_pass_domain = proxy_pass.clone();
-        let local_encoder_clone = encoder.clone();
-        // no connections
-        let mut connect_svc = ConnectEndpoint::default();
-        // hold endpoint request, prevent
+    // we add a write lock to prevent multiple context execute into block below.
+    {
         let mut connect_pool_w = connect_pool.write().unwrap();
-        if let Ok(Some(conn)) = connect_svc
-            .call(EndpointRequestParams {
-                endpoint: proxy_pass_domain.clone(),
-            })
-            .await
-        {
-            let conn = Rc::new(conn);
-            connect_pool_w.insert(proxy_pass_domain.clone(), conn.clone());
-            // endpoint -> proxy -> client
-            let connect_pool_cloned = connect_pool.clone();
-            monoio::spawn(async move {
-                match conn.borrow() {
-                    ClientConnectionType::Http(i, _) => {
-                        let _ =
-                            copy_response_lock(i.clone(), local_encoder_clone, &proxy_pass_domain)
-                                .await;
+        // critical code start
+        if !connect_pool_w.contains_key(proxy_pass.host()) {
+            // hold endpoint request, prevent
+            log::info!(
+                "{} endpoint connections not exists, try connect now. [{:?}]",
+                proxy_pass.host(),
+                connect_pool_w.keys()
+            );
+            // open channel
+            let proxy_pass_domain = proxy_pass.clone();
+            let local_encoder_clone = encoder.clone();
+            // no connections
+            let mut connect_svc = ConnectEndpoint::default();
+            if let Ok(Some(conn)) = connect_svc
+                .call(EndpointRequestParams {
+                    endpoint: proxy_pass.clone(),
+                })
+                .await
+            {
+                let conn = Rc::new(conn);
+                connect_pool_w.insert(proxy_pass_domain.host().to_owned(), conn.clone());
+                // endpoint -> proxy -> client
+                let connect_pool_cloned = connect_pool.clone();
+                let rx_clone = rx.clone();
+                monoio::spawn(async move {
+                    match conn.borrow() {
+                        ClientConnectionType::Http(i, _) => {
+                            monoio::select! {
+                                _ = copy_response_lock(i.clone(), local_encoder_clone, proxy_pass_domain.clone()) => {}
+                                _ = rx_clone.recv() => {
+                                    log::info!("client exit, now cancelling endpoint connection");
+                                }
+                            };
+                        }
+                        ClientConnectionType::Tls(i, _) => {
+                            monoio::select! {
+                                _ = copy_response_lock(i.clone(), local_encoder_clone, proxy_pass_domain.clone()) => {}
+                                _ = rx_clone.recv() => {
+                                    log::info!("client exit, now cancelling endpoint connection");
+                                }
+                            };
+                        }
                     }
-                    ClientConnectionType::Tls(i, _) => {
-                        let _ =
-                            copy_response_lock(i.clone(), local_encoder_clone, &proxy_pass_domain)
-                                .await;
-                    }
-                }
-                // remove proxy pass endpoint
-                connect_pool_cloned
+                    // remove proxy pass endpoint
+                    connect_pool_cloned
+                        .write()
+                        .unwrap()
+                        .remove(proxy_pass_domain.host());
+                    log::info!("🗑 remove {} from endpoint pool", &proxy_pass_domain);
+                });
+            } else {
+                // connect endpoint failed
+                let _ = encoder
                     .write()
                     .unwrap()
-                    .remove(&proxy_pass_domain);
-                log::info!("remove {} from endpoint pool", &proxy_pass_domain);
-            });
+                    .send_and_flush(generate_response(StatusCode::NOT_FOUND))
+                    .await;
+            }
         } else {
-            // connect endpoint failed
-            let _ = encoder
-                .write()
-                .unwrap()
-                .send_and_flush(generate_response(StatusCode::NOT_FOUND))
-                .await;
+            log::info!("🚀 endpoint connection found for {}!", proxy_pass);
         }
     }
-    if let Some(conn) = connect_pool.read().unwrap().get(proxy_pass) {
+    if let Some(conn) = connect_pool.read().unwrap().get(proxy_pass.host()) {
         // send this request to endpoint
         let conn = conn.clone();
         let proxy_pass_domain = proxy_pass.clone();

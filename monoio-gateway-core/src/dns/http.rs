@@ -51,8 +51,8 @@ impl Domain {
     }
 
     #[inline]
-    pub fn host(&self) -> String {
-        self.uri.authority().unwrap().host().to_owned()
+    pub fn host(&self) -> &str {
+        self.uri.authority().unwrap().host()
     }
 
     pub fn listen_addr(&self, wide: bool) -> String {
@@ -80,6 +80,6 @@ impl Resolvable for Domain {
 
 impl Display for Domain {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "{}", self.uri)
+        write!(f, "{}", self.uri)
     }
 }

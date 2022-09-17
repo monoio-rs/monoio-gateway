@@ -59,7 +59,7 @@ where
                 log::debug!("data sent");
             }
             Some(Err(decode_error)) => {
-                log::warn!("{}", decode_error);
+                log::warn!("DecodeError: {}", decode_error);
             }
             None => {
                 log::info!("reached EOF, bye");
@@ -94,7 +94,7 @@ where
                 log::debug!("request sent");
             }
             Some(Err(decode_error)) => {
-                log::warn!("{}", decode_error);
+                log::warn!("Decode Error: {}", decode_error);
             }
             None => {
                 log::info!("forward reached EOF, bye");
@@ -128,7 +128,7 @@ where
                 let _ = monoio::join!(local.fill_payload(), remote.send_and_flush(response));
             }
             Some(Err(decode_error)) => {
-                log::warn!("{}", decode_error);
+                log::warn!("DecodeError: {}", decode_error);
             }
             None => {
                 log::info!("backward reached EOF, bye");
@@ -143,7 +143,7 @@ where
 pub async fn copy_response_lock<Read, Write>(
     local: Rc<RwLock<Read>>,
     remote: Rc<RwLock<Write>>,
-    domain: &Domain,
+    domain: Domain,
 ) -> Result<(), std::io::Error>
 where
     Read: Stream<Item = Result<Response<Payload>, DecodeError>> + FillPayload,
@@ -154,7 +154,7 @@ where
         match local.next().await {
             Some(Ok(response)) => {
                 let mut response: Response = response;
-                Rewrite::rewrite_response(&mut response, domain);
+                Rewrite::rewrite_response(&mut response, &domain);
                 log::info!(
                     "response code: {},{:?}",
                     response.status(),
@@ -166,7 +166,8 @@ where
                 });
             }
             Some(Err(decode_error)) => {
-                log::warn!("{}", decode_error);
+                log::warn!("DecodeError: {}", decode_error);
+                break;
             }
             None => {
                 log::info!("backward reached EOF, bye");
@@ -174,6 +175,7 @@ where
             }
         }
     }
+    let _ = remote.write().unwrap().close().await;
     Ok(())
 }
 

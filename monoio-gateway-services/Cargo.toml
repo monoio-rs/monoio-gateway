@@ -20,3 +20,5 @@ log = "0.4"
 http = "0.2"
 acme-lib = "0.8"
 bytes = "1"
+
+async-channel = "1"
