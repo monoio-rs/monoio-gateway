@@ -1,4 +1,6 @@
-use http::header::HOST;
+use std::{rc::Rc, sync::RwLock};
+
+use http::{header::HOST, StatusCode};
 use monoio::{
     io::{
         sink::{Sink, SinkExt},
@@ -136,4 +138,47 @@ where
         }
     }
     Ok(())
+}
+
+pub async fn copy_response_lock<Read, Write>(
+    local: Rc<RwLock<Read>>,
+    remote: Rc<RwLock<Write>>,
+    domain: &Domain,
+) -> Result<(), std::io::Error>
+where
+    Read: Stream<Item = Result<Response<Payload>, DecodeError>> + FillPayload,
+    Write: Sink<Response<Payload>>,
+{
+    loop {
+        let mut local = local.write().unwrap();
+        match local.next().await {
+            Some(Ok(response)) => {
+                let mut response: Response = response;
+                Rewrite::rewrite_response(&mut response, domain);
+                log::info!(
+                    "response code: {},{:?}",
+                    response.status(),
+                    response.headers(),
+                );
+                let _ = monoio::join!(local.fill_payload(), async {
+                    let mut remote = remote.write().unwrap();
+                    remote.send_and_flush(response).await
+                });
+            }
+            Some(Err(decode_error)) => {
+                log::warn!("{}", decode_error);
+            }
+            None => {
+                log::info!("backward reached EOF, bye");
+                break;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub fn generate_response(status_code: StatusCode) -> Response {
+    let mut resp = Response::builder();
+    resp = resp.status(status_code);
+    resp.body(Payload::None).unwrap()
 }

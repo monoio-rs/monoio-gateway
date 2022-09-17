@@ -1,57 +1,47 @@
-use std::future::Future;
+use std::{future::Future, rc::Rc, sync::RwLock};
 
 use anyhow::bail;
 use log::info;
 use monoio::{
-    io::{AsyncReadRent, AsyncWriteRent, Split, Splitable},
+    io::{AsyncWriteRent, OwnedReadHalf, OwnedWriteHalf, Splitable},
     net::TcpStream,
 };
 use monoio_gateway_core::{
     dns::{http::Domain, Resolvable},
     error::GError,
     http::ssl::get_default_tls_connector,
-    service::{Layer, Service},
+    service::Service,
 };
-use monoio_http::{
-    common::request::Request,
-    h1::codec::{decoder::ResponseDecoder, encoder::GenericEncoder},
-};
+use monoio_http::h1::codec::{decoder::ResponseDecoder, encoder::GenericEncoder};
 
 use rustls::ServerName;
 
-use super::transfer::{TransferParams, TransferParamsType};
-
-pub struct EndpointRequestParams<A, EndPoint, S: AsyncWriteRent> {
-    local: TransferParamsType<A, S>,
-    pub(crate) local_req: Option<Request>,
+pub struct EndpointRequestParams<EndPoint> {
     pub(crate) endpoint: EndPoint,
 }
 
-impl<A, Endpoint, S: AsyncWriteRent> EndpointRequestParams<A, Endpoint, S> {
-    pub fn new(
-        local: TransferParamsType<A, S>,
-        endpoint: Endpoint,
-        local_req: Option<Request>,
-    ) -> Self {
-        Self {
-            local,
-            endpoint,
-            local_req,
-        }
+impl<Endpoint> EndpointRequestParams<Endpoint> {
+    pub fn new(endpoint: Endpoint) -> Self {
+        Self { endpoint }
     }
 }
 
-#[derive(Clone)]
-pub struct ConnectEndpoint<T> {
-    inner: T,
+#[derive(Default, Clone)]
+pub struct ConnectEndpoint;
+
+pub enum ClientConnectionType<I, O: AsyncWriteRent> {
+    Http(
+        Rc<RwLock<ResponseDecoder<OwnedReadHalf<I>>>>,
+        Rc<RwLock<GenericEncoder<OwnedWriteHalf<O>>>>,
+    ),
+    Tls(
+        Rc<RwLock<ResponseDecoder<monoio_rustls::ClientTlsStreamReadHalf<I>>>>,
+        Rc<RwLock<GenericEncoder<monoio_rustls::ClientTlsStreamWriteHalf<O>>>>,
+    ),
 }
 
-impl<T, S> Service<EndpointRequestParams<Domain, Domain, S>> for ConnectEndpoint<T>
-where
-    T: Service<TransferParams<S, TcpStream, Domain>>,
-    S: Split + AsyncWriteRent + AsyncReadRent,
-{
-    type Response = Option<T::Response>;
+impl Service<EndpointRequestParams<Domain>> for ConnectEndpoint {
+    type Response = Option<ClientConnectionType<TcpStream, TcpStream>>;
 
     type Error = GError;
 
@@ -59,7 +49,7 @@ where
     where
         Self: 'cx;
 
-    fn call(&mut self, req: EndpointRequestParams<Domain, Domain, S>) -> Self::Future<'_> {
+    fn call(&mut self, req: EndpointRequestParams<Domain>) -> Self::Future<'_> {
         async move {
             info!("trying to connect to endpoint");
             let resolved = req.endpoint.resolve().await?;
@@ -69,27 +59,12 @@ where
                     match TcpStream::connect(addr).await {
                         Ok(stream) => match req.endpoint.version() {
                             monoio_gateway_core::http::version::Type::HTTP => {
-                                info!("establishing http connection to endpoint");
-                                let (rr, rw) = stream.into_split();
-                                let (rr_decoder, rw_encoder) =
-                                    (ResponseDecoder::new(rr), GenericEncoder::new(rw));
-
-                                match self
-                                    .inner
-                                    .call(TransferParams::new(
-                                        req.local,
-                                        TransferParamsType::ClientHttp(
-                                            rw_encoder,
-                                            rr_decoder,
-                                            req.endpoint,
-                                        ),
-                                        req.local_req,
-                                    ))
-                                    .await
-                                {
-                                    Ok(resp) => return Ok(Some(resp)),
-                                    Err(err) => bail!("{}", err),
-                                }
+                                // no need to handshake
+                                let (r, w) = stream.into_split();
+                                return Ok(Some(ClientConnectionType::Http(
+                                    Rc::new(RwLock::new(ResponseDecoder::new(r))),
+                                    Rc::new(RwLock::new(GenericEncoder::new(w))),
+                                )));
                             }
                             monoio_gateway_core::http::version::Type::HTTPS => {
                                 info!("establishing https connection to endpoint");
@@ -98,25 +73,11 @@ where
                                     ServerName::try_from(req.endpoint.host().as_ref())?;
                                 match tls_connector.connect(server_name, stream).await {
                                     Ok(endpoint_stream) => {
-                                        let (rr, rw) = endpoint_stream.split();
-                                        let (rr_decoder, rw_encoder) =
-                                            (ResponseDecoder::new(rr), GenericEncoder::new(rw));
-                                        match self
-                                            .inner
-                                            .call(TransferParams::new(
-                                                req.local,
-                                                TransferParamsType::ClientTls(
-                                                    rw_encoder,
-                                                    rr_decoder,
-                                                    req.endpoint,
-                                                ),
-                                                req.local_req,
-                                            ))
-                                            .await
-                                        {
-                                            Ok(resp) => return Ok(Some(resp)),
-                                            Err(err) => bail!("{}", err),
-                                        };
+                                        let (r, w) = endpoint_stream.split();
+                                        return Ok(Some(ClientConnectionType::Tls(
+                                            Rc::new(RwLock::new(ResponseDecoder::new(r))),
+                                            Rc::new(RwLock::new(GenericEncoder::new(w))),
+                                        )));
                                     }
                                     Err(tls_error) => bail!("{}", tls_error),
                                 }
@@ -129,21 +90,5 @@ where
             }
             Ok(None)
         }
-    }
-}
-
-pub struct ConnectEndpointLayer;
-
-impl ConnectEndpointLayer {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl<S> Layer<S> for ConnectEndpointLayer {
-    type Service = ConnectEndpoint<S>;
-
-    fn layer(&self, service: S) -> Self::Service {
-        ConnectEndpoint { inner: service }
     }
 }

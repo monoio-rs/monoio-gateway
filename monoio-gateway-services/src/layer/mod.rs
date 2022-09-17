@@ -5,11 +5,9 @@ pub mod delay;
 pub mod detect;
 pub mod endpoint;
 pub mod listen;
-pub mod rewrite;
 pub mod router;
 pub mod timeout;
 pub mod tls;
-pub mod transfer;
 /// monoio service layer
 
 pub trait NewService<I> {

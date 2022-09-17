@@ -20,12 +20,8 @@ use monoio_gateway_core::service::{Service, ServiceBuilder};
 
 use monoio_gateway_services::layer::accept::{Accept, TcpAcceptService};
 use monoio_gateway_services::layer::detect::DetectService;
-use monoio_gateway_services::layer::endpoint::ConnectEndpointLayer;
-
-use monoio_gateway_services::layer::rewrite::RewriteLayer;
-use monoio_gateway_services::layer::router::RouterLayer;
+use monoio_gateway_services::layer::router::RouterService;
 use monoio_gateway_services::layer::tls::TlsLayer;
-use monoio_gateway_services::layer::transfer::HttpTransferService;
 
 use super::Proxy;
 
@@ -74,10 +70,7 @@ impl Proxy for HttpProxy {
                                             monoio_gateway_core::http::version::Type::HTTP => {
                                                 info!("a http client detected");
                                                 let mut handler = handler
-                                                    .layer(RouterLayer::new(route_cloned))
-                                                    .layer(RewriteLayer::default())
-                                                    .layer(ConnectEndpointLayer::new())
-                                                    .service(HttpTransferService::default());
+                                                    .service(RouterService::new(route_cloned));
                                                 match handler.call(acc).await {
                                                     Ok(_) => {
                                                         info!("✔ complete connection");
@@ -91,10 +84,7 @@ impl Proxy for HttpProxy {
                                                 info!("a https client detected");
                                                 let mut handler = ServiceBuilder::new()
                                                     .layer(TlsLayer::new())
-                                                    .layer(RouterLayer::new(route_cloned))
-                                                    .layer(RewriteLayer::default())
-                                                    .layer(ConnectEndpointLayer::new())
-                                                    .service(HttpTransferService::default());
+                                                    .service(RouterService::new(route_cloned));
                                                 match handler.call(acc).await {
                                                     Ok(_) => {
                                                         info!("✔ complete connection");
@@ -122,7 +112,6 @@ impl Proxy for HttpProxy {
                     }
                 }
             }
-            Ok(())
         }
     }
 }
