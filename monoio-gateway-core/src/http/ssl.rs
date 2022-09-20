@@ -3,10 +3,10 @@ use std::{fmt::Debug, fs::File, io::BufReader, path::Path};
 use anyhow::bail;
 use monoio_rustls::TlsConnector;
 use rustls::{
-    internal::msgs::codec::Codec, server::ResolvesServerCert, OwnedTrustAnchor, RootCertStore,
+    internal::msgs::codec::Codec, server::ResolvesServerCert,
 };
 
-use crate::{error::GError, CERTIFICATE_MAP};
+use crate::{error::GError, CERTIFICATE_MAP, DEFAULT_SSL_CLIENT_CONFIG};
 
 #[derive(Default)]
 pub struct CertificateResolver;
@@ -97,17 +97,5 @@ where
 
 #[inline]
 pub fn get_default_tls_connector() -> TlsConnector {
-    let mut root_store = RootCertStore::empty();
-    root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
-        OwnedTrustAnchor::from_subject_spki_name_constraints(
-            ta.subject,
-            ta.spki,
-            ta.name_constraints,
-        )
-    }));
-    let config = rustls::ClientConfig::builder()
-        .with_safe_defaults()
-        .with_root_certificates(root_store)
-        .with_no_client_auth();
-    TlsConnector::from(config)
+    TlsConnector::from(DEFAULT_SSL_CLIENT_CONFIG.read().unwrap().clone())
 }

@@ -22,6 +22,7 @@ use figlet_rs::FIGfont;
 
 #[cfg(feature = "acme")]
 use lazy_static::lazy_static;
+use rustls::{OwnedTrustAnchor, RootCertStore};
 
 use crate::http::ssl::CertificateResolver;
 
@@ -35,6 +36,21 @@ lazy_static! {
     /// ssl
     pub static ref CERTIFICATE_MAP: Arc<RwLock<HashMap<String, Arc<rustls::sign::CertifiedKey>>>> = Arc::new(RwLock::new(HashMap::new()));
     pub static ref CERTIFICATE_RESOLVER: Arc<CertificateResolver> = Arc::new(CertificateResolver::new());
+    pub static ref DEFAULT_SSL_CLIENT_CONFIG: Arc<RwLock<rustls::ClientConfig>> = {
+        let mut root_store = RootCertStore::empty();
+        root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {
+            OwnedTrustAnchor::from_subject_spki_name_constraints(
+                ta.subject,
+                ta.spki,
+                ta.name_constraints,
+            )
+        }));
+        let config = rustls::ClientConfig::builder()
+            .with_safe_defaults()
+            .with_root_certificates(root_store)
+            .with_no_client_auth();
+        Arc::new(RwLock::new(config))
+    };
 }
 
 pub trait Builder<Config> {

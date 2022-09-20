@@ -393,6 +393,7 @@ async fn handle_endpoint_connection<O>(
     rx: Receiver<()>,
 ) where
     O: AsyncWriteRent + 'static,
+    GenericEncoder<O>: monoio::io::sink::Sink<Response<Payload>>,
 {
     // we add a write lock to prevent multiple context execute into block below.
     {
@@ -424,18 +425,26 @@ async fn handle_endpoint_connection<O>(
                 monoio::spawn(async move {
                     match conn.borrow() {
                         ClientConnectionType::Http(i, _) => {
+                            let cloned = Rc::downgrade(&local_encoder_clone);
                             monoio::select! {
                                 _ = copy_response_lock(i.clone(), local_encoder_clone, proxy_pass_domain.clone()) => {}
                                 _ = rx_clone.recv() => {
                                     log::info!("client exit, now cancelling endpoint connection");
+                                    if let Some(sender) = cloned.upgrade() {
+                                        let _ = sender.write().unwrap().close().await;
+                                    }
                                 }
                             };
                         }
                         ClientConnectionType::Tls(i, _) => {
+                            let cloned = Rc::downgrade(&local_encoder_clone);
                             monoio::select! {
                                 _ = copy_response_lock(i.clone(), local_encoder_clone, proxy_pass_domain.clone()) => {}
                                 _ = rx_clone.recv() => {
                                     log::info!("client exit, now cancelling endpoint connection");
+                                    if let Some(sender) = cloned.upgrade() {
+                                        let _ = sender.write().unwrap().close().await;
+                                    }
                                 }
                             };
                         }
