@@ -9,7 +9,7 @@ edition = "2021"
 monoio = {path = "../../monoio/monoio", features = ['splice']}
 monoio-gateway-core = {path = "../monoio-gateway-core"}
 monoio-http = {path = "../../monoio-http/monoio-http"}
-monoio-rustls = {path = "../../monoio-tls/monoio-rustls"}
+monoio-rustls = {path = "../../monoio-tls/monoio-rustls", features = ["tls12"]}
 # tls
 rustls = {version = "0.20", features = ["tls12"]}
 rustls-pemfile = "1"

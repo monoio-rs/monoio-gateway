@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 monoio = {path = "../../monoio/monoio"}
 monoio-http = {path = "../../monoio-http/monoio-http"}
-monoio-rustls = {path = "../../monoio-tls/monoio-rustls"}
+monoio-rustls = {path = "../../monoio-tls/monoio-rustls", features = ["tls12"]}
 
 thiserror = "1"
 anyhow = "1"

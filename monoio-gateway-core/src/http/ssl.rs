@@ -2,9 +2,7 @@ use std::{fmt::Debug, fs::File, io::BufReader, path::Path};
 
 use anyhow::bail;
 use monoio_rustls::TlsConnector;
-use rustls::{
-    internal::msgs::codec::Codec, server::ResolvesServerCert,
-};
+use rustls::{internal::msgs::codec::Codec, server::ResolvesServerCert};
 
 use crate::{error::GError, CERTIFICATE_MAP, DEFAULT_SSL_CLIENT_CONFIG};
 
@@ -97,5 +95,5 @@ where
 
 #[inline]
 pub fn get_default_tls_connector() -> TlsConnector {
-    TlsConnector::from(DEFAULT_SSL_CLIENT_CONFIG.read().unwrap().clone())
+    TlsConnector::from(DEFAULT_SSL_CLIENT_CONFIG.clone())
 }

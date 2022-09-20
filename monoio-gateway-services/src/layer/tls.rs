@@ -51,7 +51,6 @@ where
         let tls_config = self.config.clone();
         async move {
             info!("begin handshake");
-            // TODO: integrate acme
             let tls_acceptor: TlsAcceptor;
             match tls_config {
                 Some(tls_config) => {
