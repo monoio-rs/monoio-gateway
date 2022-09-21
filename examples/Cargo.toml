@@ -9,7 +9,7 @@ edition = "2021"
 monoio-gateway = {path = '../monoio-gateway'}
 monoio-gateway-core = {path = '../monoio-gateway-core', features = ['full']}
 monoio-gateway-services = {path = '../monoio-gateway-services'}
-monoio = {path = '../../monoio/monoio'}
+monoio = {version = "0.0.8", features = ['splice']}
 monoio-http = {path = '../../monoio-http/monoio-http'}
 anyhow = "1"
 
