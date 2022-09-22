@@ -1,4 +1,6 @@
-use std::{borrow::Borrow, collections::HashMap, future::Future, path::Path, rc::Rc, sync::RwLock};
+use std::{
+    borrow::Borrow, cell::UnsafeCell, collections::HashMap, future::Future, path::Path, rc::Rc,
+};
 
 use async_channel::Receiver;
 use bytes::Bytes;
@@ -40,7 +42,8 @@ use super::{
     tls::TlsAccept,
 };
 
-pub type SharedTcpConnectPool<I, O> = Rc<RwLock<HashMap<String, Rc<ClientConnectionType<I, O>>>>>;
+pub type SharedTcpConnectPool<I, O> =
+    Rc<UnsafeCell<HashMap<String, Rc<ClientConnectionType<I, O>>>>>;
 
 pub struct RouterService<A, I, O: AsyncWriteRent> {
     routes: Rc<HashMap<String, RouterConfig<A>>>,
@@ -78,11 +81,10 @@ where
             let (stream, socketaddr) = local_stream;
             let (local_read, local_write) = stream.into_split();
             let mut local_decoder = RequestDecoder::new(local_read);
-            let local_encoder = Rc::new(RwLock::new(GenericEncoder::new(local_write)));
+            let local_encoder = Rc::new(UnsafeCell::new(GenericEncoder::new(local_write)));
             let (tx, rx) = async_channel::bounded(1);
             loop {
                 let connect_pool = self.connect_pool.clone();
-                let local_encoder_clone = local_encoder.clone();
                 match local_decoder.next().await {
                     Some(Ok(req)) => {
                         let req: Request<Payload> = req;
@@ -100,7 +102,7 @@ where
                                             handle_endpoint_connection(
                                                 connect_pool,
                                                 &proxy_pass,
-                                                local_encoder_clone,
+                                                local_encoder.clone(),
                                                 req,
                                                 rx.clone(),
                                             )
@@ -112,7 +114,7 @@ where
                                                 .handle_acme_verification(
                                                     req,
                                                     target,
-                                                    local_encoder_clone.clone(),
+                                                    local_encoder.clone(),
                                                 )
                                                 .await
                                             {
@@ -122,28 +124,26 @@ where
                                                 }
                                             }
                                             debug!("no matching router rule, {}", domain);
-                                            let _ = local_encoder_clone
-                                                .write()
-                                                .unwrap()
-                                                .send_and_flush(generate_response(
-                                                    StatusCode::NOT_FOUND,
-                                                ));
+                                            let local_encoder =
+                                                unsafe { &mut *local_encoder.get() };
+                                            let _ = local_encoder.send_and_flush(
+                                                generate_response(StatusCode::NOT_FOUND),
+                                            );
                                         }
                                     }
                                     None => {
                                         debug!("no matching endpoint, ignoring {}", domain);
-                                        let _ =
-                                            local_encoder_clone.write().unwrap().send_and_flush(
-                                                generate_response(StatusCode::NOT_FOUND),
-                                            );
+                                        let local_encoder = unsafe { &mut *local_encoder.get() };
+                                        let _ = local_encoder.send_and_flush(generate_response(
+                                            StatusCode::NOT_FOUND,
+                                        ));
                                     }
                                 }
                             }
                             None => {
                                 debug!("request has no host, uri: {}", req.uri());
-                                let _ = local_encoder_clone
-                                    .write()
-                                    .unwrap()
+                                let local_encoder = unsafe { &mut *local_encoder.get() };
+                                let _ = local_encoder
                                     .send_and_flush(generate_response(StatusCode::FORBIDDEN));
                             }
                         };
@@ -187,12 +187,11 @@ where
             let (stream, socketaddr, _) = local_stream;
             let (local_read, local_write) = stream.split();
             let mut local_decoder = RequestDecoder::new(local_read);
-            let local_encoder = Rc::new(RwLock::new(GenericEncoder::new(local_write)));
+            let local_encoder = Rc::new(UnsafeCell::new(GenericEncoder::new(local_write)));
             // exit notifier
             let (tx, rx) = async_channel::bounded(1);
             loop {
                 let connect_pool = self.connect_pool.clone();
-                let local_encoder_clone = local_encoder.clone();
                 match local_decoder.next().await {
                     Some(Ok(req)) => {
                         let req: Request<Payload> = req;
@@ -210,7 +209,7 @@ where
                                             handle_endpoint_connection(
                                                 connect_pool,
                                                 &proxy_pass,
-                                                local_encoder_clone,
+                                                local_encoder.clone(),
                                                 req,
                                                 rx.clone(),
                                             )
@@ -222,7 +221,7 @@ where
                                                 .handle_acme_verification(
                                                     req,
                                                     target,
-                                                    local_encoder_clone.clone(),
+                                                    local_encoder.clone(),
                                                 )
                                                 .await
                                             {
@@ -232,28 +231,26 @@ where
                                                 }
                                             }
                                             debug!("no matching router rule, {}", domain);
-                                            let _ = local_encoder_clone
-                                                .write()
-                                                .unwrap()
-                                                .send_and_flush(generate_response(
-                                                    StatusCode::NOT_FOUND,
-                                                ));
+                                            let local_encoder =
+                                                unsafe { &mut *local_encoder.get() };
+                                            let _ = local_encoder.send_and_flush(
+                                                generate_response(StatusCode::NOT_FOUND),
+                                            );
                                         }
                                     }
                                     None => {
                                         debug!("no matching endpoint, ignoring {}", domain);
-                                        let _ =
-                                            local_encoder_clone.write().unwrap().send_and_flush(
-                                                generate_response(StatusCode::NOT_FOUND),
-                                            );
+                                        let local_encoder = unsafe { &mut *local_encoder.get() };
+                                        let _ = local_encoder.send_and_flush(generate_response(
+                                            StatusCode::NOT_FOUND,
+                                        ));
                                     }
                                 }
                             }
                             None => {
                                 debug!("request has no host, uri: {}", req.uri());
-                                let _ = local_encoder_clone
-                                    .write()
-                                    .unwrap()
+                                let local_encoder = unsafe { &mut *local_encoder.get() };
+                                let _ = local_encoder
                                     .send_and_flush(generate_response(StatusCode::FORBIDDEN));
                             }
                         };
@@ -299,8 +296,9 @@ where
         &self,
         req: Request<Payload>,
         conf: &RouterConfig<A>,
-        encoder: Rc<RwLock<IO>>,
+        encoder: Rc<UnsafeCell<IO>>,
     ) -> Result<bool, GError> {
+        let encoder = unsafe { &mut *encoder.get() };
         let name = conf.server_name.get_acme_path()?;
         let p = Path::new(&name);
         match &conf.tls {
@@ -331,7 +329,7 @@ where
                             let response = Builder::new()
                                 .body(Payload::Fixed(FixedPayload::new(bytes)))
                                 .unwrap();
-                            let _ = encoder.write().unwrap().send_and_flush(response).await;
+                            let _ = encoder.send_and_flush(response).await;
                             info!("acme challenge replied");
                             return Ok(true);
                         }
@@ -341,7 +339,7 @@ where
                             let response = Builder::new()
                                 .body(Payload::Fixed(FixedPayload::new(data)))
                                 .unwrap();
-                            let _ = encoder.write().unwrap().send_and_flush(response).await;
+                            let _ = encoder.send_and_flush(response).await;
                         }
                     }
                 }
@@ -388,7 +386,7 @@ fn get_host(req: &Request<Payload>) -> Option<&str> {
 async fn handle_endpoint_connection<O>(
     connect_pool: SharedTcpConnectPool<TcpStream, TcpStream>,
     proxy_pass: &Domain,
-    encoder: Rc<RwLock<GenericEncoder<O>>>,
+    encoder: Rc<UnsafeCell<GenericEncoder<O>>>,
     mut request: Request<Payload>,
     rx: Receiver<()>,
 ) where
@@ -397,14 +395,14 @@ async fn handle_endpoint_connection<O>(
 {
     // we add a write lock to prevent multiple context execute into block below.
     {
-        let mut connect_pool_w = connect_pool.write().unwrap();
+        let connect_pool = unsafe { &mut *connect_pool.get() };
         // critical code start
-        if !connect_pool_w.contains_key(proxy_pass.host()) {
+        if !connect_pool.contains_key(proxy_pass.host()) {
             // hold endpoint request, prevent
             log::info!(
                 "{} endpoint connections not exists, try connect now. [{:?}]",
                 proxy_pass.host(),
-                connect_pool_w.keys()
+                connect_pool.keys()
             );
             // open channel
             let proxy_pass_domain = proxy_pass.clone();
@@ -418,9 +416,9 @@ async fn handle_endpoint_connection<O>(
                 .await
             {
                 let conn = Rc::new(conn);
-                connect_pool_w.insert(proxy_pass_domain.host().to_owned(), conn.clone());
+                connect_pool.insert(proxy_pass_domain.host().to_owned(), conn.clone());
                 // endpoint -> proxy -> client
-                let connect_pool_cloned = connect_pool.clone();
+                let _connect_pool_cloned = connect_pool.clone();
                 let rx_clone = rx.clone();
                 monoio::spawn(async move {
                     match conn.borrow() {
@@ -431,7 +429,8 @@ async fn handle_endpoint_connection<O>(
                                 _ = rx_clone.recv() => {
                                     log::info!("client exit, now cancelling endpoint connection");
                                     if let Some(sender) = cloned.upgrade() {
-                                        let _ = sender.write().unwrap().close().await;
+                                        let sender = unsafe{&mut *sender.get()};
+                                        let _ = sender.close().await;
                                     }
                                 }
                             };
@@ -443,24 +442,21 @@ async fn handle_endpoint_connection<O>(
                                 _ = rx_clone.recv() => {
                                     log::info!("client exit, now cancelling endpoint connection");
                                     if let Some(sender) = cloned.upgrade() {
-                                        let _ = sender.write().unwrap().close().await;
+                                        let sender = unsafe{&mut *sender.get()};
+                                        let _ = sender.close().await;
                                     }
                                 }
                             };
                         }
                     }
                     // remove proxy pass endpoint
-                    connect_pool_cloned
-                        .write()
-                        .unwrap()
-                        .remove(proxy_pass_domain.host());
+                    connect_pool.remove(proxy_pass_domain.host());
                     log::info!("🗑 remove {} from endpoint pool", &proxy_pass_domain);
                 });
             } else {
                 // connect endpoint failed
+                let encoder = unsafe { &mut *encoder.get() };
                 let _ = encoder
-                    .write()
-                    .unwrap()
                     .send_and_flush(generate_response(StatusCode::NOT_FOUND))
                     .await;
             }
@@ -468,7 +464,8 @@ async fn handle_endpoint_connection<O>(
             log::info!("🚀 endpoint connection found for {}!", proxy_pass);
         }
     }
-    if let Some(conn) = connect_pool.read().unwrap().get(proxy_pass.host()) {
+    let connect_pool = unsafe { &mut *connect_pool.get() };
+    if let Some(conn) = connect_pool.get(proxy_pass.host()) {
         // send this request to endpoint
         let conn = conn.clone();
         let proxy_pass_domain = proxy_pass.clone();
@@ -476,10 +473,12 @@ async fn handle_endpoint_connection<O>(
             Rewrite::rewrite_request(&mut request, &proxy_pass_domain);
             match conn.borrow() {
                 ClientConnectionType::Http(_, sender) => {
-                    let _ = sender.write().unwrap().send_and_flush(request).await;
+                    let sender = unsafe { &mut *sender.get() };
+                    let _ = sender.send_and_flush(request).await;
                 }
                 ClientConnectionType::Tls(_, sender) => {
-                    let _ = sender.write().unwrap().send_and_flush(request).await;
+                    let sender = unsafe { &mut *sender.get() };
+                    let _ = sender.send_and_flush(request).await;
                 }
             }
         });

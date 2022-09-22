@@ -1,4 +1,4 @@
-use std::{future::Future, rc::Rc, sync::RwLock};
+use std::{cell::UnsafeCell, future::Future, rc::Rc};
 
 use anyhow::bail;
 use log::info;
@@ -31,12 +31,12 @@ pub struct ConnectEndpoint;
 
 pub enum ClientConnectionType<I, O: AsyncWriteRent> {
     Http(
-        Rc<RwLock<ResponseDecoder<OwnedReadHalf<I>>>>,
-        Rc<RwLock<GenericEncoder<OwnedWriteHalf<O>>>>,
+        Rc<UnsafeCell<ResponseDecoder<OwnedReadHalf<I>>>>,
+        Rc<UnsafeCell<GenericEncoder<OwnedWriteHalf<O>>>>,
     ),
     Tls(
-        Rc<RwLock<ResponseDecoder<monoio_rustls::ClientTlsStreamReadHalf<I>>>>,
-        Rc<RwLock<GenericEncoder<monoio_rustls::ClientTlsStreamWriteHalf<O>>>>,
+        Rc<UnsafeCell<ResponseDecoder<monoio_rustls::ClientTlsStreamReadHalf<I>>>>,
+        Rc<UnsafeCell<GenericEncoder<monoio_rustls::ClientTlsStreamWriteHalf<O>>>>,
     ),
 }
 
@@ -62,8 +62,8 @@ impl Service<EndpointRequestParams<Domain>> for ConnectEndpoint {
                                 // no need to handshake
                                 let (r, w) = stream.into_split();
                                 return Ok(Some(ClientConnectionType::Http(
-                                    Rc::new(RwLock::new(ResponseDecoder::new(r))),
-                                    Rc::new(RwLock::new(GenericEncoder::new(w))),
+                                    Rc::new(UnsafeCell::new(ResponseDecoder::new(r))),
+                                    Rc::new(UnsafeCell::new(GenericEncoder::new(w))),
                                 )));
                             }
                             monoio_gateway_core::http::version::Type::HTTPS => {
@@ -75,8 +75,8 @@ impl Service<EndpointRequestParams<Domain>> for ConnectEndpoint {
                                     Ok(endpoint_stream) => {
                                         let (r, w) = endpoint_stream.split();
                                         return Ok(Some(ClientConnectionType::Tls(
-                                            Rc::new(RwLock::new(ResponseDecoder::new(r))),
-                                            Rc::new(RwLock::new(GenericEncoder::new(w))),
+                                            Rc::new(UnsafeCell::new(ResponseDecoder::new(r))),
+                                            Rc::new(UnsafeCell::new(GenericEncoder::new(w))),
                                         )));
                                     }
                                     Err(tls_error) => bail!("{}", tls_error),

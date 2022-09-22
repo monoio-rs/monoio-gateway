@@ -1,4 +1,4 @@
-use std::{rc::Rc, sync::RwLock};
+use std::{cell::UnsafeCell, rc::Rc};
 
 use http::{header::HOST, StatusCode};
 use monoio::{
@@ -141,16 +141,17 @@ where
 }
 
 pub async fn copy_response_lock<Read, Write>(
-    local: Rc<RwLock<Read>>,
-    remote: Rc<RwLock<Write>>,
+    local: Rc<UnsafeCell<Read>>,
+    remote: Rc<UnsafeCell<Write>>,
     domain: Domain,
 ) -> Result<(), std::io::Error>
 where
     Read: Stream<Item = Result<Response<Payload>, DecodeError>> + FillPayload,
     Write: Sink<Response<Payload>>,
 {
+    let local = unsafe { &mut *local.get() };
+    let remote = unsafe { &mut *remote.get() };
     loop {
-        let mut local = local.write().unwrap();
         match local.next().await {
             Some(Ok(response)) => {
                 let mut response: Response = response;
@@ -160,10 +161,7 @@ where
                     response.status(),
                     response.headers(),
                 );
-                let _ = monoio::join!(local.fill_payload(), async {
-                    let mut remote = remote.write().unwrap();
-                    remote.send_and_flush(response).await
-                });
+                let _ = monoio::join!(local.fill_payload(), remote.send_and_flush(response));
             }
             Some(Err(decode_error)) => {
                 log::warn!("DecodeError: {}", decode_error);
@@ -175,7 +173,7 @@ where
             }
         }
     }
-    let _ = remote.write().unwrap().close().await;
+    let _ = remote.close().await;
     Ok(())
 }
 
