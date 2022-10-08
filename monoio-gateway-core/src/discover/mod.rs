@@ -1,4 +1,4 @@
-use std::future::Future;
+use std::{fmt::Display, future::Future};
 
 use self::change::DiscoverChange;
 
@@ -11,7 +11,7 @@ pub trait Discover {
 
     type Service;
 
-    type Error;
+    type Error: Display;
 
     type DiscoverFuture<'a>: Future<
         Output = Result<Option<DiscoverChange<Self::Key, Self::Service>>, Self::Error>,

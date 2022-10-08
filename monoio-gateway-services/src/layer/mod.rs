@@ -3,6 +3,7 @@ pub mod acme;
 pub mod auth;
 pub mod delay;
 pub mod detect;
+pub mod discover;
 pub mod endpoint;
 pub mod listen;
 pub mod router;

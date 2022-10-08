@@ -24,7 +24,7 @@ use figlet_rs::FIGfont;
 use lazy_static::lazy_static;
 use rustls::{OwnedTrustAnchor, RootCertStore};
 
-use crate::http::ssl::CertificateResolver;
+use crate::{dns::http::Domain, http::ssl::CertificateResolver};
 
 pub const MAX_CONFIG_SIZE_LIMIT: usize = 8072;
 pub const ACME_URI_PREFIX: &str = "/.well-known";
@@ -51,6 +51,14 @@ lazy_static! {
             .with_no_client_auth();
         Arc::new(config)
     };
+}
+
+lazy_static! {
+    /// Service Discover
+    ///
+    /// Note:
+    /// A thread-shared map <Server Domain, Proxy Pass Domain>
+    pub static ref DISCOVERED: Arc<RwLock<HashMap<Domain, Domain>>> = Arc::new(RwLock::new(HashMap::new()));
 }
 
 pub trait Builder<Config> {

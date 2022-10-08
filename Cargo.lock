@@ -315,6 +315,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "h2"
+version = "0.3.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ca32592cf21ac7ccab1825cd87f6c9b3d9022c44d086172ed0966bec8af30be"
+dependencies = [
+ "bytes",
+ "fnv",
+ "futures-core",
+ "futures-sink",
+ "futures-util",
+ "http",
+ "indexmap",
+ "slab",
+ "tokio",
+ "tokio-util",
+ "tracing",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -589,10 +608,13 @@ name = "monoio-http"
 version = "0.0.1"
 dependencies = [
  "bytes",
+ "h2",
  "http",
  "httparse",
  "monoio",
  "monoio-codec",
+ "monoio-rustls",
+ "rustls 0.20.6",
  "thiserror",
 ]
 
@@ -1212,6 +1234,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89797afd69d206ccd11fb0ea560a44bbb87731d020670e79416d442919257d42"
 dependencies = [
  "autocfg",
+ "bytes",
+ "memchr",
  "once_cell",
  "pin-project-lite",
  "socket2",
