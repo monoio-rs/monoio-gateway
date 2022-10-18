@@ -1,7 +1,7 @@
-use std::{future::Future, thread};
+use std::future::Future;
 
 use log::info;
-use monoio::RuntimeBuilder;
+
 use monoio_gateway_core::{
     config::{Config, InBoundConfig, OutBoundConfig},
     dns::{http::Domain, tcp::TcpAddress, Resolvable},
@@ -117,26 +117,19 @@ where
             let mut handler_vec = vec![];
             for gw in self.iter() {
                 let cloned = gw.clone();
-                let handler = thread::spawn(move || {
-                    let mut rt = RuntimeBuilder::<monoio::IoUringDriver>::new()
-                        .enable_timer()
-                        .with_entries(32768)
-                        .build()
-                        .unwrap();
-                    rt.block_on(async move {
-                        match cloned.serve().await {
-                            Ok(_) => {}
-                            Err(err) => {
-                                log::error!("Gateway Error: {}", err);
-                            }
+                let handler = monoio::spawn(async move {
+                    match cloned.serve().await {
+                        Ok(_) => {}
+                        Err(err) => {
+                            log::error!("Gateway Error: {}", err);
                         }
-                    });
+                    }
                 });
                 handler_vec.push(handler);
             }
             // wait to exit
             for handle in handler_vec.into_iter() {
-                let _ = handle.join();
+                let _ = handle.await;
             }
             Ok(())
         }

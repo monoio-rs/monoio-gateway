@@ -1,9 +1,13 @@
 #![feature(generic_associated_types)]
 #![feature(type_alias_impl_trait)]
 
+use std::thread;
+
 use anyhow::{bail, Result};
 use clap::Parser;
 
+use log::info;
+use monoio::RuntimeBuilder;
 use monoio_gateway::{
     gateway::{Gateway, Gatewayable, Servable},
     init_env,
@@ -12,7 +16,7 @@ use monoio_gateway_core::{
     dns::{http::Domain, Resolvable},
     error::GError,
     http::router::{Router, RouterConfig, RoutersConfig},
-    print_logo, Builder,
+    max_parallel_count, print_logo, Builder, MAX_IOURING_ENTRIES,
 };
 
 use serde::de::DeserializeOwned;
@@ -39,7 +43,7 @@ async fn main() -> Result<()> {
     let router = Router::build_with_config(configs);
     // start service
     let gws = Gateway::from_router(router);
-    let _ = gws.serve().await;
+    serve_gateway(gws);
     Ok(())
 }
 
@@ -54,5 +58,41 @@ where
             log::error!("{}", err);
             bail!("{}", err);
         }
+    }
+}
+
+/// Serve Monoio-Gateway with maximum parallel count
+fn serve_gateway<A>(gws: Vec<Gateway<A>>)
+where
+    A: Resolvable + Send + 'static,
+    Gateway<A>: Gatewayable<A>,
+{
+    let mut handlers = vec![];
+    let parallel_cnt = max_parallel_count().get();
+    info!(
+        "🚀 boost monoio-gateway with maximum {} worker(s).",
+        parallel_cnt
+    );
+    for _ in 0..parallel_cnt {
+        let local_gws = gws.clone();
+        let handler = thread::spawn(move || {
+            let mut rt = RuntimeBuilder::<monoio::IoUringDriver>::new()
+                .enable_timer()
+                .with_entries(MAX_IOURING_ENTRIES)
+                .build()
+                .unwrap();
+            rt.block_on(async move {
+                match local_gws.serve().await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        log::error!("Gateway Error: {}", err);
+                    }
+                }
+            });
+        });
+        handlers.push(handler);
+    }
+    for handler in handlers.into_iter() {
+        let _ = handler.join();
     }
 }

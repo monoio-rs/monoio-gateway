@@ -15,6 +15,7 @@ pub mod util;
 
 use std::{
     collections::HashMap,
+    num::NonZeroUsize,
     sync::{Arc, RwLock},
 };
 
@@ -27,6 +28,7 @@ use rustls::{OwnedTrustAnchor, RootCertStore};
 use crate::{dns::http::Domain, http::ssl::CertificateResolver};
 
 pub const MAX_CONFIG_SIZE_LIMIT: usize = 8072;
+pub const MAX_IOURING_ENTRIES: u32 = 32768;
 pub const ACME_URI_PREFIX: &str = "/.well-known";
 
 #[cfg(feature = "acme")]
@@ -70,4 +72,8 @@ pub fn print_logo() {
     if let Some(figure) = standard_font.convert("Monoio Gateway") {
         println!("{}", figure);
     }
+}
+
+pub fn max_parallel_count() -> NonZeroUsize {
+    std::thread::available_parallelism().unwrap_or(unsafe { NonZeroUsize::new_unchecked(1) })
 }

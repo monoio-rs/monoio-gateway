@@ -48,7 +48,6 @@ where
             }
             let ssl_record_type: u8 = buf[0];
             let ssl_version_b1: u8 = buf[1];
-            // TODO: add ssl version detect
             let _ssl_version_b2: u8 = buf[2];
             let reader = Cursor::new(buf);
             let pio = PrefixedReadIo::new(tcp, reader);

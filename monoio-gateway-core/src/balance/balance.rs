@@ -6,6 +6,6 @@ where
     D: Discover,
     S: IntoIterator,
 {
-    discover: D,
-    services: SvcList<S>,
+    pub discover: D,
+    pub services: SvcList<S>,
 }
