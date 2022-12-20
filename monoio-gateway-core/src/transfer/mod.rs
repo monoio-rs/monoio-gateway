@@ -49,7 +49,7 @@ pub async fn copy_stream_sink<I, Read, Write>(
 where
     Read: Stream<Item = Result<I, DecodeError>> + FillPayload,
     Write: Sink<I>,
-    I: IntoParts,
+    I: IntoParts + 'static,
 {
     loop {
         match local.next().await {

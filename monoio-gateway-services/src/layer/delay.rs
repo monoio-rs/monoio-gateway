@@ -12,12 +12,13 @@ pub struct DelayService<T> {
 impl<R, T> Service<R> for DelayService<T>
 where
     T: Service<R>,
+    R: 'static,
 {
     type Response = T::Response;
 
     type Error = T::Error;
 
-    type Future<'cx> = impl Future<Output = Result<Self::Response, Self::Error>>
+    type Future<'cx> = impl Future<Output = Result<Self::Response, Self::Error>> + 'cx
     where
         Self: 'cx;
 

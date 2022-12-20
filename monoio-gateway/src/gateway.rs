@@ -30,7 +30,7 @@ pub struct Gateway<Addr> {
 }
 
 impl Gatewayable<TcpAddress> for Gateway<TcpAddress> {
-    type GatewayFuture<'cx> = impl Future<Output = Result<(), GError>> where Self: 'cx;
+    type GatewayFuture<'cx> = impl Future<Output = Result<(), GError>> + 'cx where Self: 'cx;
 
     fn new(config: Vec<RouterConfig<TcpAddress>>) -> Self {
         Self { config }
@@ -60,7 +60,7 @@ impl Gatewayable<TcpAddress> for Gateway<TcpAddress> {
 }
 
 impl Gatewayable<Domain> for Gateway<Domain> {
-    type GatewayFuture<'cx> = impl Future<Output = Result<(), GError>> where Self: 'cx;
+    type GatewayFuture<'cx> = impl Future<Output = Result<(), GError>> + 'cx where Self: 'cx;
 
     fn new(config: Vec<RouterConfig<Domain>>) -> Self {
         Self { config }
@@ -109,7 +109,7 @@ where
     A: Resolvable + Send + 'static,
     Gateway<A>: Gatewayable<A>,
 {
-    type Future<'a> = impl Future<Output = Result<(), GError>>
+    type Future<'a> = impl Future<Output = Result<(), GError>> + 'a
      where Self: 'a;
 
     fn serve(&self) -> Self::Future<'_> {

@@ -1,15 +1,15 @@
 [package]
 name = "monoio-gateway-services"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-monoio = {version = "0.0.8", features = ['splice']}
+monoio = {version = "0.0.9", features = ['splice'], path = "../../monoio/monoio"}
 monoio-gateway-core = {path = "../monoio-gateway-core"}
-monoio-http = {path = "../../monoio-http/monoio-http"}
-monoio-rustls = {path = "../../monoio-tls/monoio-rustls", features = ["tls12"], default-features=false}
+monoio-http = {version = "0.0.2", path = "../../monoio-http/monoio-http"}
+monoio-rustls = {version = "0.0.7", path = "../../monoio-tls/monoio-rustls", features = ["tls12"], default-features=false}
 # tls
 rustls = {version = "0.20", features = ["tls12"]}
 rustls-pemfile = "1"

@@ -72,7 +72,7 @@ where
 
     type Error = GError;
 
-    type Future<'a> = impl Future<Output = Result<Self::Response, Self::Error>>
+    type Future<'a> = impl Future<Output = Result<Self::Response, Self::Error>> + 'a
     where
         Self: 'a;
 
@@ -178,7 +178,7 @@ where
 
     type Error = GError;
 
-    type Future<'a> = impl Future<Output = Result<Self::Response, Self::Error>>
+    type Future<'a> = impl Future<Output = Result<Self::Response, Self::Error>> + 'a
     where
         Self: 'a;
 

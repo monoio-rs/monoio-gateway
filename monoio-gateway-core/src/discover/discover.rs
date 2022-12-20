@@ -19,8 +19,8 @@ where
     type Error = GError;
 
     type DiscoverFuture<'a> = impl Future<
-    Output = Result<Option<DiscoverChange<Self::Key, Self::Service>>, Self::Error>,
->
+        Output = Result<Option<DiscoverChange<Self::Key, Self::Service>>, Self::Error>,
+    > + 'a
     where
         Self: 'a;
 
