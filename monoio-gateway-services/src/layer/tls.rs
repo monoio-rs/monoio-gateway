@@ -37,13 +37,13 @@ pub trait Tls {
 impl<T, S> Service<Accept<S>> for TlsService<T>
 where
     T: Service<TlsAccept<S>>,
-    S: Split + AsyncReadRent + AsyncWriteRent,
+    S: Split + AsyncReadRent + AsyncWriteRent + 'static,
 {
     type Response = T::Response;
 
     type Error = GError;
 
-    type Future<'cx> = impl Future<Output = Result<Self::Response, Self::Error>>
+    type Future<'cx> = impl Future<Output = Result<Self::Response, Self::Error>> + 'cx
     where
         Self: 'cx;
 

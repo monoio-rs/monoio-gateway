@@ -23,6 +23,7 @@ pub trait Layer<S> {
     fn layer(&self, service: S) -> Self::Service;
 }
 
+#[allow(dead_code)]
 pub struct SvcList<S>
 where
     S: IntoIterator,
@@ -30,6 +31,7 @@ where
     inner: Enumerate<S::IntoIter>,
 }
 
+#[allow(dead_code)]
 type ListSvcList<S> = SvcList<Vec<S>>;
 
 pub struct ServiceBuilder<L> {

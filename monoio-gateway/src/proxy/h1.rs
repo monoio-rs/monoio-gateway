@@ -33,7 +33,7 @@ pub struct HttpProxy {
 
 impl Proxy for HttpProxy {
     type Error = GError;
-    type OutputFuture<'a> = impl Future<Output = Result<(), Self::Error>> where Self: 'a;
+    type OutputFuture<'a> = impl Future<Output = Result<(), Self::Error>> + 'a where Self: 'a;
 
     fn io_loop(&self) -> Self::OutputFuture<'_> {
         async {

@@ -1,6 +1,6 @@
 [package]
 name = "monoio-gateway"
-version = "0.0.1"
+version = "0.1.1"
 edition = "2021"
 keywords = ["monoio", "http", "async"]
 description = "The gateway plugin for monoio"
@@ -8,11 +8,11 @@ description = "The gateway plugin for monoio"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-monoio-gateway-core = {path = "../monoio-gateway-core", features = ['full']}
-monoio-gateway-services = {path = "../monoio-gateway-services"}
+monoio-gateway-core = { path = "../monoio-gateway-core", features = ['full'] }
+monoio-gateway-services = { path = "../monoio-gateway-services" }
 
-monoio = {version = "0.0.8"}
-monoio-http = {path = "../../monoio-http/monoio-http"}
+monoio = { version = "0.0.9", path = "../../monoio/monoio" }
+monoio-http = { version = "0.0.2", path = "../../monoio-http/monoio-http" }
 
 bytes = "1"
 http = "0.2"
@@ -20,11 +20,11 @@ httparse = "1"
 thiserror = "1"
 anyhow = "1"
 # logger
-env_logger = "0.9"
+env_logger = "0.10"
 log = "0.4"
-clap = {version = "3", features = ['derive']}
+clap = { version = "4", features = ['derive'] }
 
-tower = {version = "0.4", features = ["full"]}
+tower = { version = "0.4", features = ["full"] }
 
 serde = "1"
 serde_json = "1"

@@ -19,7 +19,7 @@ pub struct TcpProxy {
 
 impl Proxy for TcpProxy {
     type Error = anyhow::Error;
-    type OutputFuture<'a> = impl Future<Output = Result<(), Self::Error>> where Self: 'a;
+    type OutputFuture<'a> = impl Future<Output = Result<(), Self::Error>> + 'a where Self: 'a;
 
     fn io_loop(&self) -> Self::OutputFuture<'_> {
         async {

@@ -1,5 +1,5 @@
 use std::{
-    fmt::{Display, Write},
+    fmt::Display,
     future::Future,
 };
 
@@ -69,7 +69,7 @@ impl Resolvable for Domain {
 
     type Address = String;
 
-    type ResolveFuture<'a> = impl Future<Output = Result<Option<Self::Address>, Self::Error>>
+    type ResolveFuture<'a> = impl Future<Output = Result<Option<Self::Address>, Self::Error>> + 'a
     where
         Self: 'a;
 

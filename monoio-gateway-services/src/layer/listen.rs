@@ -23,7 +23,7 @@ where
 
     type Error = GError;
 
-    type Future<'cx> = impl Future<Output = Result<Self::Response, Self::Error>>
+    type Future<'cx> = impl Future<Output = Result<Self::Response, Self::Error>> + 'cx
     where
         Self: 'cx;
 

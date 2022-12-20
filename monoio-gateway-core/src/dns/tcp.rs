@@ -23,7 +23,7 @@ impl TcpAddress {
 impl Resolvable for TcpAddress {
     type Error = anyhow::Error;
 
-    type ResolveFuture<'a> = impl Future<Output = Result<Option<SocketAddr>, Self::Error>>;
+    type ResolveFuture<'a> = impl Future<Output = Result<Option<SocketAddr>, Self::Error>> + 'a;
 
     type Address = SocketAddr;
 
