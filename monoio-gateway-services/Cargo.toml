@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-monoio = {version = "0.0.9", features = ['splice'], path = "../../monoio/monoio"}
+monoio = {version = "0.0.9", features = ['splice'] }
 monoio-gateway-core = {path = "../monoio-gateway-core"}
 monoio-http = {version = "0.0.2", path = "../../monoio-http/monoio-http"}
 monoio-rustls = {version = "0.0.7", path = "../../monoio-tls/monoio-rustls", features = ["tls12"], default-features=false}

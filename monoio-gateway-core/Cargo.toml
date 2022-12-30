@@ -6,9 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-monoio = {version = "0.0.9", features = ['splice'], path = "../../monoio/monoio"}
-monoio-http = {version = "0.0.2", path = "../../monoio-http/monoio-http"}
-monoio-rustls = {version = "0.0.7", path = "../../monoio-tls/monoio-rustls", features = ["tls12"], default-features=false}
+monoio = { version = "0.0.9", features = ['splice'] }
+monoio-http = { version = "0.0.2", path = "../../monoio-http/monoio-http" }
+monoio-rustls = { version = "0.0.7", path = "../../monoio-tls/monoio-rustls", features = [
+    "tls12",
+], default-features = false }
 
 thiserror = "1"
 anyhow = "1"
@@ -18,16 +20,19 @@ http-serde = "1"
 serde = "1"
 serde_derive = "1"
 serde_json = "1"
+toml = "0.5"
 
 log = "0.4"
 
 figlet-rs = "0.1"
-
 acme-lib = "0.8"
 lazy_static = "1"
 
-rustls = {version = "0.20", features = ["tls12"]}
+rustls = { version = "0.20", features = ["tls12"] }
 rustls-pemfile = "1"
+
+tower = { version = "0.4", features = ["full"] }
+
 webpki-roots = "0.22"
 
 [features]

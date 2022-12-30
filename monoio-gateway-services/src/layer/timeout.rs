@@ -26,17 +26,11 @@ where
 
     fn call(&mut self, req: R) -> Self::Future<'_> {
         async {
-            monoio::select! {
-                _ = monoio::time::timeout(self.timeout, async {}) => {
-                    return Err(anyhow::anyhow!("timeout"))
-                }
-
-                ret = self.inner.call(req) => {
-                    return match ret {
-                        Ok(resp) => Ok(Some(resp)),
-                        Err(err) => Err(anyhow::anyhow!("{}", err)),
-                    }
-                }
+            let result = monoio::time::timeout(self.timeout, self.inner.call(req)).await;
+            match result {
+                Ok(Ok(resp)) => Ok(Some(resp)),
+                Ok(Err(err)) => Err(anyhow::anyhow!("{}", err)),
+                Err(_) => Err(anyhow::anyhow!("timeout")),
             }
         }
     }

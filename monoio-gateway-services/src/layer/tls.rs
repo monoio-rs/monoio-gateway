@@ -1,13 +1,12 @@
-use std::{future::Future, marker::PhantomData, net::SocketAddr};
+use std::{future::Future, marker::PhantomData, net::SocketAddr, sync::Arc};
 
 use anyhow::bail;
 use log::info;
 use monoio::io::{AsyncReadRent, AsyncWriteRent, Split};
 use monoio_gateway_core::{
     error::GError,
-    http::ssl::{read_pem_file, read_private_key_file},
+    http::ssl::{read_pem_file, read_private_key_file, CertificateResolver},
     service::{Layer, Service},
-    CERTIFICATE_RESOLVER,
 };
 use monoio_rustls::{ServerTlsStream, TlsAcceptor};
 use rustls::{Certificate, PrivateKey, ServerConfig};
@@ -22,6 +21,7 @@ pub struct TlsService<T> {
     // enable_client_auth: bool,
     // cert
     config: Option<ServerConfig>,
+    server_name: String,
     inner: T,
 }
 
@@ -49,23 +49,25 @@ where
 
     fn call(&mut self, accept: Accept<S>) -> Self::Future<'_> {
         let tls_config = self.config.clone();
+        let server_name = self.server_name.clone();
         async move {
             info!("begin handshake");
-            let tls_acceptor: TlsAcceptor;
-            match tls_config {
-                Some(tls_config) => {
-                    tls_acceptor = TlsAcceptor::from(tls_config);
-                }
+            let tls_acceptor = match tls_config {
+                Some(tls_config) => TlsAcceptor::from(tls_config),
                 None => {
                     // default acme cert
                     let config = ServerConfig::builder()
                         .with_safe_defaults()
                         .with_no_client_auth()
-                        .with_cert_resolver(CERTIFICATE_RESOLVER.clone());
+                        .with_cert_resolver(Arc::new(CertificateResolver::new(server_name)));
 
-                    tls_acceptor = TlsAcceptor::from(config);
+                    // TODO: add h2 codec to enable the alpn
+                    // config.alpn_protocols = vec!["h2".to_string().into()];
+
+                    TlsAcceptor::from(config)
                 }
-            }
+            };
+
             match tls_acceptor.accept(accept.0).await {
                 Ok(stream) => match self.inner.call((stream, accept.1, PhantomData)).await {
                     Ok(resp) => Ok(resp),
@@ -84,6 +86,7 @@ pub struct TlsLayer {
     enable_client_auth: bool,
     // cert
     config: Option<ServerConfig>,
+    server_name: String,
 }
 
 impl TlsLayer {
@@ -91,6 +94,7 @@ impl TlsLayer {
         ca_cert: String,
         crt_cert: String,
         private_key: String,
+        server_name: String,
     ) -> Result<Self, GError> {
         let ca = read_pem_file(ca_cert)?;
         let ca_cert = Certificate(ca);
@@ -104,9 +108,11 @@ impl TlsLayer {
             .with_no_client_auth()
             .with_single_cert(vec![crt_cert, ca_cert], private_cert)
             .expect("invalid server ssl cert. Please check validity of cert provided.");
+        // let server_name = Arc::new(server_name);
         Ok(Self {
             config: Some(config),
             enable_client_auth: false,
+            server_name,
         })
     }
 
@@ -115,10 +121,11 @@ impl TlsLayer {
         self
     }
 
-    pub fn new() -> Self {
+    pub fn new(server_name: String) -> Self {
         Self {
             config: None,
             enable_client_auth: false,
+            server_name,
         }
     }
 }
@@ -131,6 +138,7 @@ impl<S> Layer<S> for TlsLayer {
             // enable_client_auth: self.enable_client_auth,
             config: self.config.clone(),
             inner: service,
+            server_name: self.server_name.clone(),
         }
     }
 }

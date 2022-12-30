@@ -523,11 +523,30 @@ dependencies = [
  "io-uring",
  "libc",
  "mio",
- "monoio-macros",
+ "monoio-macros 0.0.3",
  "nix",
  "pin-project-lite",
  "socket2",
- "windows",
+ "windows 0.43.0",
+]
+
+[[package]]
+name = "monoio"
+version = "0.0.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a95486b08b357dfe586456169452352790e9c194e95374bf36b18c11a78a0d8"
+dependencies = [
+ "bytes",
+ "fxhash",
+ "io-uring",
+ "libc",
+ "mio",
+ "monoio-macros 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nix",
+ "pin-project-lite",
+ "scoped-tls",
+ "socket2",
+ "windows 0.42.0",
 ]
 
 [[package]]
@@ -535,7 +554,7 @@ name = "monoio-codec"
 version = "0.0.4"
 dependencies = [
  "bytes",
- "monoio",
+ "monoio 0.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-util",
 ]
 
@@ -550,7 +569,7 @@ dependencies = [
  "http",
  "httparse",
  "log",
- "monoio",
+ "monoio 0.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "monoio-gateway-core",
  "monoio-gateway-services",
  "monoio-http",
@@ -558,6 +577,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "thiserror",
+ "toml",
  "tower",
 ]
 
@@ -572,7 +592,7 @@ dependencies = [
  "http-serde",
  "lazy_static",
  "log",
- "monoio",
+ "monoio 0.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "monoio-http",
  "monoio-rustls",
  "rustls 0.20.6",
@@ -581,6 +601,8 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "thiserror",
+ "toml",
+ "tower",
  "webpki-roots 0.22.4",
 ]
 
@@ -589,7 +611,7 @@ name = "monoio-gateway-examples"
 version = "0.1.1"
 dependencies = [
  "anyhow",
- "monoio",
+ "monoio 0.0.9",
  "monoio-gateway",
  "monoio-gateway-core",
  "monoio-gateway-services",
@@ -606,7 +628,7 @@ dependencies = [
  "bytes",
  "http",
  "log",
- "monoio",
+ "monoio 0.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "monoio-gateway-core",
  "monoio-http",
  "monoio-rustls",
@@ -622,7 +644,8 @@ dependencies = [
  "bytes",
  "http",
  "httparse",
- "monoio",
+ "log",
+ "monoio 0.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "monoio-codec",
  "thiserror",
 ]
@@ -637,11 +660,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "monoio-macros"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c85c9d2114c190b1ec18da29bfbe399a95d81657633b0d2333d4084515aa9f95"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "monoio-rustls"
 version = "0.0.7"
 dependencies = [
  "bytes",
- "monoio",
+ "monoio 0.0.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustls 0.20.6",
  "thiserror",
 ]
@@ -963,6 +997,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4501abdff3ae82a1c1b477a17252eb69cee9e66eb915c1abaa4f44d873df9f09"
 
 [[package]]
+name = "scoped-tls"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1cf6437eb19a8f4a6cc0f7dca544973b0b78843adbfeb3683d1a94a0024a294"
+
+[[package]]
 name = "sct"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1263,6 +1303,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "toml"
+version = "0.5.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1333c76748e868a4d9d1017b5ab53171dfd095f70c712fdb4653a406547f598f"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "tower"
 version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1530,6 +1579,21 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
+
+[[package]]
+name = "windows"
+version = "0.42.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0286ba339aa753e70765d521bb0242cc48e1194562bfa2a2ad7ac8a6de28f5d5"
+dependencies = [
+ "windows_aarch64_gnullvm",
+ "windows_aarch64_msvc 0.42.0",
+ "windows_i686_gnu 0.42.0",
+ "windows_i686_msvc 0.42.0",
+ "windows_x86_64_gnu 0.42.0",
+ "windows_x86_64_gnullvm",
+ "windows_x86_64_msvc 0.42.0",
+]
 
 [[package]]
 name = "windows"

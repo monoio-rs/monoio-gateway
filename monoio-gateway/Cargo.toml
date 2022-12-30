@@ -11,7 +11,7 @@ description = "The gateway plugin for monoio"
 monoio-gateway-core = { path = "../monoio-gateway-core", features = ['full'] }
 monoio-gateway-services = { path = "../monoio-gateway-services" }
 
-monoio = { version = "0.0.9", path = "../../monoio/monoio" }
+monoio = { version = "0.0.9" }
 monoio-http = { version = "0.0.2", path = "../../monoio-http/monoio-http" }
 
 bytes = "1"
@@ -29,3 +29,4 @@ tower = { version = "0.4", features = ["full"] }
 serde = "1"
 serde_json = "1"
 serde_derive = "1"
+toml = "0.5"

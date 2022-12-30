@@ -6,6 +6,7 @@ pub mod detect;
 pub mod discover;
 pub mod endpoint;
 pub mod listen;
+pub mod proxy;
 pub mod router;
 pub mod timeout;
 pub mod tls;

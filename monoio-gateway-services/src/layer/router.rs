@@ -1,10 +1,7 @@
-use std::{
-    borrow::Borrow, cell::UnsafeCell, collections::HashMap, future::Future, path::Path, rc::Rc,
-};
+use std::{borrow::Borrow, cell::UnsafeCell, collections::HashMap, future::Future, rc::Rc};
 
 use async_channel::Receiver;
-use bytes::Bytes;
-use http::{response::Builder, StatusCode};
+use http::StatusCode;
 use log::{debug, info};
 use monoio::{
     io::{
@@ -15,7 +12,6 @@ use monoio::{
     net::TcpStream,
 };
 use monoio_gateway_core::{
-    acme::Acmed,
     dns::{http::Domain, Resolvable},
     error::GError,
     http::{
@@ -30,7 +26,7 @@ use monoio_http::{
     common::{request::Request, response::Response},
     h1::{
         codec::{decoder::RequestDecoder, encoder::GenericEncoder},
-        payload::{FixedPayload, Payload},
+        payload::Payload,
     },
 };
 
@@ -46,7 +42,7 @@ pub type SharedTcpConnectPool<I, O> =
     Rc<UnsafeCell<HashMap<String, Rc<ClientConnectionType<I, O>>>>>;
 
 pub struct RouterService<A, I, O: AsyncWriteRent> {
-    routes: Rc<HashMap<String, RouterConfig<A>>>,
+    routes: Rc<RouterConfig<A>>,
 
     connect_pool: SharedTcpConnectPool<I, O>,
 }
@@ -88,65 +84,25 @@ where
                 match local_decoder.next().await {
                     Some(Ok(req)) => {
                         let req: Request<Payload> = req;
-                        let host = get_host(&req);
-                        match host {
-                            Some(host) => {
-                                let domain = Domain::with_uri(host.parse()?);
-                                let target = self.match_target(&host.to_owned());
-                                match target {
-                                    Some(target) => {
-                                        let m = longest_match(req.uri().path(), target.get_rules());
-                                        if let Some(rule) = m {
-                                            // parsed rule for this request and spawn task to handle endpoint connection
-                                            let proxy_pass = rule.get_proxy_pass().to_owned();
-                                            handle_endpoint_connection(
-                                                connect_pool,
-                                                &proxy_pass,
-                                                local_encoder.clone(),
-                                                req,
-                                                rx.clone(),
-                                            )
-                                            .await;
-                                            continue;
-                                        } else {
-                                            // no match router rule, is acme?
-                                            if let Ok(handled) = self
-                                                .handle_acme_verification(
-                                                    req,
-                                                    target,
-                                                    local_encoder.clone(),
-                                                )
-                                                .await
-                                            {
-                                                // no, is not acme, not find handler
-                                                if handled {
-                                                    continue;
-                                                }
-                                            }
-                                            debug!("no matching router rule, {}", domain);
-                                            let local_encoder =
-                                                unsafe { &mut *local_encoder.get() };
-                                            let _ = local_encoder.send_and_flush(
-                                                generate_response(StatusCode::NOT_FOUND),
-                                            );
-                                        }
-                                    }
-                                    None => {
-                                        debug!("no matching endpoint, ignoring {}", domain);
-                                        let local_encoder = unsafe { &mut *local_encoder.get() };
-                                        let _ = local_encoder.send_and_flush(generate_response(
-                                            StatusCode::NOT_FOUND,
-                                        ));
-                                    }
-                                }
-                            }
-                            None => {
-                                debug!("request has no host, uri: {}", req.uri());
-                                let local_encoder = unsafe { &mut *local_encoder.get() };
-                                let _ = local_encoder
-                                    .send_and_flush(generate_response(StatusCode::FORBIDDEN));
-                            }
-                        };
+
+                        let m = longest_match(req.uri().path(), self.routes.get_rules());
+                        if let Some(rule) = m {
+                            // parsed rule for this request and spawn task to handle endpoint connection
+                            let proxy_pass = rule.get_proxy_pass().to_owned();
+                            handle_endpoint_connection(
+                                connect_pool,
+                                &proxy_pass,
+                                local_encoder.clone(),
+                                req,
+                                rx.clone(),
+                            )
+                            .await;
+                            continue;
+                        } else {
+                            debug!("no matching router rule for request uri:  {}", req.uri());
+                            handle_request_error(local_encoder.clone(), StatusCode::NOT_FOUND)
+                                .await;
+                        }
                     }
                     Some(Err(err)) => {
                         // TODO: fallback to tcp
@@ -195,65 +151,25 @@ where
                 match local_decoder.next().await {
                     Some(Ok(req)) => {
                         let req: Request<Payload> = req;
-                        let host = get_host(&req);
-                        match host {
-                            Some(host) => {
-                                let domain = Domain::with_uri(host.parse()?);
-                                let target = self.match_target(&host.to_owned());
-                                match target {
-                                    Some(target) => {
-                                        let m = longest_match(req.uri().path(), target.get_rules());
-                                        if let Some(rule) = m {
-                                            // parsed rule for this request and spawn task to handle endpoint connection
-                                            let proxy_pass = rule.get_proxy_pass().to_owned();
-                                            handle_endpoint_connection(
-                                                connect_pool,
-                                                &proxy_pass,
-                                                local_encoder.clone(),
-                                                req,
-                                                rx.clone(),
-                                            )
-                                            .await;
-                                            continue;
-                                        } else {
-                                            // no match router rule, is acme?
-                                            if let Ok(handled) = self
-                                                .handle_acme_verification(
-                                                    req,
-                                                    target,
-                                                    local_encoder.clone(),
-                                                )
-                                                .await
-                                            {
-                                                // no, is not acme, not find handler
-                                                if handled {
-                                                    continue;
-                                                }
-                                            }
-                                            debug!("no matching router rule, {}", domain);
-                                            let local_encoder =
-                                                unsafe { &mut *local_encoder.get() };
-                                            let _ = local_encoder.send_and_flush(
-                                                generate_response(StatusCode::NOT_FOUND),
-                                            );
-                                        }
-                                    }
-                                    None => {
-                                        debug!("no matching endpoint, ignoring {}", domain);
-                                        let local_encoder = unsafe { &mut *local_encoder.get() };
-                                        let _ = local_encoder.send_and_flush(generate_response(
-                                            StatusCode::NOT_FOUND,
-                                        ));
-                                    }
-                                }
-                            }
-                            None => {
-                                debug!("request has no host, uri: {}", req.uri());
-                                let local_encoder = unsafe { &mut *local_encoder.get() };
-                                let _ = local_encoder
-                                    .send_and_flush(generate_response(StatusCode::FORBIDDEN));
-                            }
-                        };
+
+                        let m = longest_match(req.uri().path(), self.routes.get_rules());
+                        if let Some(rule) = m {
+                            // parsed rule for this request and spawn task to handle endpoint connection
+                            let proxy_pass = rule.get_proxy_pass().to_owned();
+                            handle_endpoint_connection(
+                                connect_pool,
+                                &proxy_pass,
+                                local_encoder.clone(),
+                                req,
+                                rx.clone(),
+                            )
+                            .await;
+                            continue;
+                        } else {
+                            debug!("no matching router rule for request uri: {}", req.uri());
+                            handle_request_error(local_encoder.clone(), StatusCode::NOT_FOUND)
+                                .await;
+                        }
                     }
                     Some(Err(err)) => {
                         log::warn!("{}", err);
@@ -279,74 +195,11 @@ where
     A: Resolvable,
     O: AsyncWriteRent,
 {
-    pub fn new(routes: Rc<HashMap<String, RouterConfig<A>>>) -> Self {
+    pub fn new(routes: Rc<RouterConfig<A>>) -> Self {
         Self {
             routes,
             connect_pool: Default::default(),
         }
-    }
-
-    #[inline]
-    fn match_target(&self, host: &String) -> Option<&RouterConfig<A>> {
-        self.routes.get(host)
-    }
-
-    /// if not handled, return false to continue handler
-    async fn handle_acme_verification<IO: Sink<Response>>(
-        &self,
-        req: Request<Payload>,
-        conf: &RouterConfig<A>,
-        encoder: Rc<UnsafeCell<IO>>,
-    ) -> Result<bool, GError> {
-        let encoder = unsafe { &mut *encoder.get() };
-        let name = conf.server_name.get_acme_path()?;
-        let p = Path::new(&name);
-        match &conf.tls {
-            Some(_) => {
-                let req_path = req.uri().path().to_string();
-                log::info!("acme: request path: {}", req_path);
-                if req_path.starts_with(ACME_URI_PREFIX) {
-                    // read files
-                    let abs_path = p.join(&req_path[1..]);
-                    log::info!("acme: read path: {:?}", abs_path);
-                    let mut file_bytes = vec![];
-                    match monoio::fs::File::open(Path::new(&abs_path)).await {
-                        Ok(challenge_file) => {
-                            let mut pos = 0;
-                            loop {
-                                let buf = vec![0 as u8; 1024];
-                                let (n, mut read) = challenge_file.read_at(buf, pos).await;
-                                let n = n? as u64;
-                                if n == 0 {
-                                    // EOF, let's send our challenge now.
-                                    break;
-                                }
-                                pos += n;
-                                unsafe { read.set_len(n as usize) };
-                                file_bytes.append(&mut read);
-                            }
-                            let bytes = Bytes::from(file_bytes);
-                            let response = Builder::new()
-                                .body(Payload::Fixed(FixedPayload::new(bytes)))
-                                .unwrap();
-                            let _ = encoder.send_and_flush(response).await;
-                            info!("acme challenge replied");
-                            return Ok(true);
-                        }
-                        Err(e) => {
-                            log::warn!("find acme file error: {}", e);
-                            let data = Bytes::from_static(b"404 not found --- Monoio Gateway.");
-                            let response = Builder::new()
-                                .body(Payload::Fixed(FixedPayload::new(data)))
-                                .unwrap();
-                            let _ = encoder.send_and_flush(response).await;
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-        Ok(false)
     }
 }
 
@@ -373,12 +226,23 @@ fn longest_match<'cx>(
     target_route
 }
 
+#[cfg(dead_code)]
 #[inline]
 fn get_host(req: &Request<Payload>) -> Option<&str> {
     match req.headers().get("host") {
         Some(host) => Some(host.to_str().unwrap_or("")),
         None => None,
     }
+}
+
+async fn handle_request_error<O>(encoder: Rc<UnsafeCell<GenericEncoder<O>>>, status: StatusCode)
+where
+    O: AsyncWriteRent + 'static,
+    GenericEncoder<O>: monoio::io::sink::Sink<Response<Payload>>,
+{
+    let encoder = unsafe { &mut *encoder.get() };
+    let _ = encoder.send_and_flush(generate_response(status)).await;
+    let _ = encoder.close().await;
 }
 
 /// handle backward connections and send request to endpoint.
@@ -423,28 +287,22 @@ async fn handle_endpoint_connection<O>(
                 monoio::spawn(async move {
                     match conn.borrow() {
                         ClientConnectionType::Http(i, _) => {
-                            let cloned = Rc::downgrade(&local_encoder_clone);
+                            let cloned = local_encoder_clone.clone();
                             monoio::select! {
                                 _ = copy_response_lock(i.clone(), local_encoder_clone, proxy_pass_domain.clone()) => {}
                                 _ = rx_clone.recv() => {
                                     log::info!("client exit, now cancelling endpoint connection");
-                                    if let Some(sender) = cloned.upgrade() {
-                                        let sender = unsafe{&mut *sender.get()};
-                                        let _ = sender.close().await;
-                                    }
+                                    handle_request_error(cloned, StatusCode::INTERNAL_SERVER_ERROR).await;
                                 }
                             };
                         }
                         ClientConnectionType::Tls(i, _) => {
-                            let cloned = Rc::downgrade(&local_encoder_clone);
+                            let cloned = local_encoder_clone.clone();
                             monoio::select! {
                                 _ = copy_response_lock(i.clone(), local_encoder_clone, proxy_pass_domain.clone()) => {}
                                 _ = rx_clone.recv() => {
                                     log::info!("client exit, now cancelling endpoint connection");
-                                    if let Some(sender) = cloned.upgrade() {
-                                        let sender = unsafe{&mut *sender.get()};
-                                        let _ = sender.close().await;
-                                    }
+                                    handle_request_error(cloned, StatusCode::INTERNAL_SERVER_ERROR).await;
                                 }
                             };
                         }
@@ -454,11 +312,7 @@ async fn handle_endpoint_connection<O>(
                     log::info!("🗑 remove {} from endpoint pool", &proxy_pass_domain);
                 });
             } else {
-                // connect endpoint failed
-                let encoder = unsafe { &mut *encoder.get() };
-                let _ = encoder
-                    .send_and_flush(generate_response(StatusCode::NOT_FOUND))
-                    .await;
+                handle_request_error(encoder, StatusCode::NOT_FOUND).await;
             }
         } else {
             log::info!("🚀 endpoint connection found for {}!", proxy_pass);

@@ -24,7 +24,7 @@ use figlet_rs::FIGfont;
 use lazy_static::lazy_static;
 use rustls::{OwnedTrustAnchor, RootCertStore};
 
-use crate::{dns::http::Domain, http::ssl::CertificateResolver};
+use crate::dns::http::Domain;
 
 pub const MAX_CONFIG_SIZE_LIMIT: usize = 8072;
 pub const MAX_IOURING_ENTRIES: u32 = 32768;
@@ -36,7 +36,7 @@ lazy_static! {
     pub static ref ACME_DIR: String = String::from("/var/monoio-gateway/acme");
     /// ssl
     pub static ref CERTIFICATE_MAP: Arc<RwLock<HashMap<String, Arc<rustls::sign::CertifiedKey>>>> = Arc::new(RwLock::new(HashMap::new()));
-    pub static ref CERTIFICATE_RESOLVER: Arc<CertificateResolver> = Arc::new(CertificateResolver::new());
+    // pub static ref CERTIFICATE_RESOLVER: Arc<CertificateResolver> = Arc::new(CertificateResolver::new());
     pub static ref DEFAULT_SSL_CLIENT_CONFIG: Arc<rustls::ClientConfig> = {
         let mut root_store = RootCertStore::empty();
         root_store.add_server_trust_anchors(webpki_roots::TLS_SERVER_ROOTS.0.iter().map(|ta| {

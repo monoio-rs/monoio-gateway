@@ -1,6 +1,6 @@
 use std::{cell::UnsafeCell, rc::Rc};
 
-use http::{header::HOST, StatusCode};
+use http::{header::HOST, HeaderValue, StatusCode};
 use monoio::{
     io::{
         sink::{Sink, SinkExt},
@@ -180,5 +180,8 @@ where
 pub fn generate_response(status_code: StatusCode) -> Response {
     let mut resp = Response::builder();
     resp = resp.status(status_code);
+    let headers = resp.headers_mut().unwrap();
+    headers.insert("Connection", HeaderValue::from_static("close"));
+    headers.insert("Content-Length", HeaderValue::from_static("0"));
     resp.body(Payload::None).unwrap()
 }

@@ -1,12 +1,17 @@
-use std::future::Future;
+use std::{future::Future, io::Cursor};
 
-use log::info;
+use anyhow::{bail, Result};
+use log::{debug, info};
 
 use monoio_gateway_core::{
+    acme::update_certificate,
     config::{Config, InBoundConfig, OutBoundConfig},
     dns::{http::Domain, tcp::TcpAddress, Resolvable},
     error::GError,
-    http::router::{Router, RouterConfig},
+    http::{
+        router::{Router, RouterConfig},
+        version::Type,
+    },
 };
 use monoio_http::ParamRef;
 
@@ -17,7 +22,7 @@ pub trait Gatewayable<Addr> {
     where
         Self: 'cx;
 
-    fn new(config: Vec<RouterConfig<Addr>>) -> Self;
+    fn new(config: RouterConfig<Addr>, port: u16) -> Self;
 
     fn from_router(router: Router<Addr>) -> Vec<Gateway<Addr>>;
 
@@ -26,14 +31,15 @@ pub trait Gatewayable<Addr> {
 
 #[derive(Clone)]
 pub struct Gateway<Addr> {
-    config: Vec<RouterConfig<Addr>>,
+    config: RouterConfig<Addr>,
+    port: u16,
 }
 
 impl Gatewayable<TcpAddress> for Gateway<TcpAddress> {
     type GatewayFuture<'cx> = impl Future<Output = Result<(), GError>> + 'cx where Self: 'cx;
 
-    fn new(config: Vec<RouterConfig<TcpAddress>>) -> Self {
-        Self { config }
+    fn new(config: RouterConfig<TcpAddress>, port: u16) -> Self {
+        Self { config, port }
     }
 
     fn serve(&self) -> Self::GatewayFuture<'_> {
@@ -51,9 +57,9 @@ impl Gatewayable<TcpAddress> for Gateway<TcpAddress> {
         info!("starting {} services", m.len());
         let mut agent_vec = vec![];
         for (port, v) in m {
-            info!("port: {}, gateway payload count: {}", port, v.len());
+            info!("gateway port: {}", port);
             let config_vec = v.clone();
-            agent_vec.push(Gateway::new(config_vec));
+            agent_vec.push(Gateway::new(config_vec, *port));
         }
         agent_vec
     }
@@ -62,13 +68,14 @@ impl Gatewayable<TcpAddress> for Gateway<TcpAddress> {
 impl Gatewayable<Domain> for Gateway<Domain> {
     type GatewayFuture<'cx> = impl Future<Output = Result<(), GError>> + 'cx where Self: 'cx;
 
-    fn new(config: Vec<RouterConfig<Domain>>) -> Self {
-        Self { config }
+    fn new(config: RouterConfig<Domain>, port: u16) -> Self {
+        Self { config, port }
     }
 
     fn serve<'cx>(&self) -> Self::GatewayFuture<'_> {
         async move {
-            let proxy = HttpProxy::build_with_config(&self.config);
+            self.configure_cert()?;
+            let proxy = HttpProxy::build_with_config(&self.config, self.port);
             proxy.io_loop().await?;
             Ok(())
         }
@@ -79,11 +86,57 @@ impl Gatewayable<Domain> for Gateway<Domain> {
         info!("starting {} services", m.len());
         let mut agent_vec = vec![];
         for (port, v) in m {
-            info!("port: {}, gateway payload count: {}", port, v.len());
-            let config_vec = v.clone();
-            agent_vec.push(Gateway::new(config_vec));
+            info!("gateway port: {}", port);
+            let config = v.clone();
+            agent_vec.push(Gateway::new(config, *port));
         }
         agent_vec
+    }
+}
+
+impl Gateway<Domain> {
+    fn configure_cert(&self) -> Result<()> {
+        let config = &self.config;
+        if config.protocol != Type::HTTPS {
+            debug!("non https server, ignore cert config");
+            return Ok(());
+        }
+        if let Some(tls) = &config.tls {
+            if tls.private_key.is_none() || tls.chain.is_none() {
+                bail!(
+                    "server: {}, private key provided: {}, certificate chain provided: {}",
+                    config.server_name,
+                    tls.private_key.is_none(),
+                    tls.chain.is_none()
+                );
+            }
+
+            let (pem_content, key_content) = (
+                std::fs::read(tls.chain.clone().unwrap()),
+                std::fs::read(tls.private_key.clone().unwrap()),
+            );
+
+            if pem_content.is_err() || key_content.is_err() {
+                bail!(
+                    "server: {}, private key read error: {}, certificate chain read error: {}",
+                    config.server_name,
+                    key_content.is_err(),
+                    pem_content.is_err()
+                );
+            }
+
+            update_certificate(
+                config.server_name.to_owned(),
+                Cursor::new(pem_content.unwrap()),
+                Cursor::new(key_content.unwrap()),
+            );
+
+            info!("🚀 ssl certificates for {} loaded.", config.server_name);
+
+            Ok(())
+        } else {
+            bail!("https server without cert config");
+        }
     }
 }
 

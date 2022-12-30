@@ -60,10 +60,10 @@ impl Proxy for TcpProxy {
 }
 
 impl TcpProxy {
-    pub fn build_with_config(config: &Vec<TcpProxyConfig>) -> Self {
-        assert!(config.len() == 1, "tcp proxy can only have one endpoint!");
+    pub fn build_with_config(config: &TcpProxyConfig) -> Self {
+        // assert!(config.len() == 1, "tcp proxy can only have one endpoint!");
         Self {
-            config: config.first().unwrap().to_owned(),
+            config: config.to_owned(),
             listener_config: ListenerConfig::default(),
         }
     }

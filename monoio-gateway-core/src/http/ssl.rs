@@ -6,12 +6,13 @@ use rustls::server::ResolvesServerCert;
 
 use crate::{error::GError, CERTIFICATE_MAP, DEFAULT_SSL_CLIENT_CONFIG};
 
-#[derive(Default)]
-pub struct CertificateResolver;
+pub struct CertificateResolver {
+    server_name: String,
+}
 
 impl CertificateResolver {
-    pub fn new() -> Self {
-        CertificateResolver::default()
+    pub fn new(server_name: String) -> Self {
+        CertificateResolver { server_name }
     }
 }
 
@@ -22,17 +23,14 @@ pub type GatewayCertificate = (Vec<u8>, Vec<u8>);
 impl ResolvesServerCert for CertificateResolver {
     fn resolve(
         &self,
-        client_hello: rustls::server::ClientHello,
+        _client_hello: rustls::server::ClientHello,
     ) -> Option<std::sync::Arc<rustls::sign::CertifiedKey>> {
-        match client_hello.server_name() {
-            Some(server_name) => {
-                let map = CERTIFICATE_MAP.read().unwrap();
-                let item = map.get(server_name);
-                match item {
-                    Some(item) => Some(item.to_owned()),
-                    None => None,
-                }
-            }
+        let map = CERTIFICATE_MAP.read().unwrap();
+        let server_name = self.server_name.as_str();
+        let item = map.get(server_name);
+        log::info!("certificate lookup succeed: {}", item.is_some());
+        match item {
+            Some(item) => Some(item.to_owned()),
             None => None,
         }
     }
